@@ -1,0 +1,11 @@
+_target_: insightx.task_modules.classification.image.ImageClassificationExplanationModule
+_partial_: true
+defaults:
+- _self_
+- /model_explainability_wrapper@model_explainability_wrapper: image_classification_explainability_wrapper
+- /torch_model_builder@torch_model_builder: timm
+checkpoint: null
+load_checkpoint_strict: false
+dataset_metadata: null
+tb_logger: null
+mixup_builder: null

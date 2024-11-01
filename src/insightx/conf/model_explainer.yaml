@@ -1,0 +1,27 @@
+# @package __global__
+_target_: hydra_zen.funcs.zen_processing
+_zen_target: insightx.model_explainer.ModelExplainer
+_zen_exclude:
+- hydra
+defaults:
+- _self_
+- /data_module@data_module: huggingface
+- /task_module@task_module: image_classification_explanation_module
+- /engine@test_engine: default_test_engine
+- /engine@explanation_engine: default_explanation_engine
+data_module: ???
+task_module: ???
+test_engine: ???
+explanation_engine: ???
+output_dir: ???
+seed: 42
+deterministic: false
+backend: nccl
+n_devices: 1
+test_model: false
+hydra:
+  run:
+    dir: ${output_dir}/model_explainer/${resolve_dir_name:${data_module.dataset_name}}/${resolve_dir_name:${task_module.torch_model_builder.model_name}}/
+  output_subdir: hydra
+  job:
+    chdir: false

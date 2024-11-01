@@ -1,0 +1,18 @@
+_target_: insightx.metrics.torchxai_metric.TorchXAIMetric
+_partial_: true
+metric_func:
+  _target_: torchxai.metrics.faithfulness.sensitivity_n.sensitivity_n
+  _partial_: true
+  feature_mask: null
+  additional_forward_args: null
+  target: null
+  n_perturb_samples: 10
+  max_examples_per_batch: null
+  normalize: false
+  is_multi_target: false
+  return_dict: false
+output_transform:
+  path: insightx.metrics.torchxai_metric.default_output_transform
+  _target_: hydra_zen.funcs.get_obj
+device: cpu
+progress_bar: null

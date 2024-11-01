@@ -1,0 +1,4 @@
+_target_: torchxai.explainers._perturbation.feature_ablation.FeatureAblationExplainer
+_partial_: true
+is_multi_target: false
+internal_batch_size: 64

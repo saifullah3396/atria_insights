@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools"]  # REQUIRED if [build-system] table is used
+build-backend = "setuptools.build_meta"  # If not defined, then legacy behavior can happen.
+
+
+[project]
+name = "insightx"
+version = "0.0.0"  # REQUIRED, although can be dynamic
+description = "TorchXAI Explanation Framework is a PyTorch-Ignite based framework designed for evaluating machine learning models using explainability techniques in a scalable manner."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {file = "LICENSE.txt"}
+keywords = ["torch", "explainable-ai", "interpretability", "machine-learning", "deep-learning"]
+authors = [
+    {name = "Saifullah", email = "saifullah.saifullah@dfki.de" }
+]
+maintainers = [
+    {name = "Saifullah", email = "saifullah.saifullah@dfki.de" }
+]
+
+# Classifiers help users find your project by categorizing it.
+#
+# For a list of valid classifiers, see https://pypi.org/classifiers/
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+]
+
+dependencies = [
+    "autopep8==2.1.0",
+    "click>=8.0.0",
+    "hydra-core==1.3.2",
+    "omegaconf==2.3.0",
+    "pytorch-ignite==0.5.0.post2",
+    "torch==2.3.0",
+    "tqdm==4.66.4",
+    "captum",
+    "pytest",
+    "torchxai @ git+https://github.com/saifullah3396/torchxai.git",
+    "atria @ git+https://git.opendfki.de/saifullah/atria.git"
+]
+
+[project.optional-dependencies]
+test = ["coverage"]
+
+
+[project.urls]
+"Homepage" = "https://git.opendfki.de/saifullah/insightx.git/"
+"Bug Reports" = "https://git.opendfki.de/saifullah/insightx.git/"
+"Source" = "https://git.opendfki.de/saifullah/insightx.git/"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["insightx*"]
+
+[tool.setuptools.package-data]
+insightx = ["*.txt", "*.yaml"]
+
+[tool.pytest.ini_options]
+pythonpath = [
+    ".", "src", "tests"
+]
+
+[tool.distutils.egg_info]
+egg_base = "."

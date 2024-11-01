@@ -1,0 +1,19 @@
+# @package __global__
+defaults:
+- /metric@explanation_engine.metrics.complexity_entropy: complexity/complexity_entropy
+- /metric@explanation_engine.metrics.complexity_sundararajan: complexity/complexity_sundararajan
+- /metric@explanation_engine.metrics.effective_complexity: complexity/effective_complexity
+- /metric@explanation_engine.metrics.sparseness: complexity/sparseness
+- _self_
+
+explanation_engine:
+  metrics:
+    effective_complexity:
+      metric_func:
+        perturb_func:
+          _target_: torchxai.metrics._utils.perturbation.default_random_perturb_func
+          noise_scale: 0.02
+        n_perturbations_per_feature: 10
+        max_features_processed_per_batch: 100
+        eps: 1.0e-05
+        show_progress: true

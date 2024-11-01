@@ -1,0 +1,26 @@
+_target_: insightx.metrics.torchxai_metric.TorchXAIMetric
+_partial_: true
+metric_func:
+  _target_: torchxai.metrics.faithfulness.faithfulness_corr.faithfulness_corr
+  _partial_: true
+  baselines: null
+  feature_mask: null
+  additional_forward_args: null
+  target: null
+  perturb_func:
+    _target_: torchxai.metrics._utils.perturbation.default_random_perturb_func
+    _partial_: false
+    noise_scale: 0.02
+  n_perturb_samples: 10
+  max_examples_per_batch: null
+  perturbation_probability: 0.1
+  show_progress: false
+  set_same_perturbation_mask_for_batch: false
+  is_multi_target: false
+  return_intermediate_results: false
+  return_dict: false
+output_transform:
+  path: insightx.metrics.torchxai_metric.default_output_transform
+  _target_: hydra_zen.funcs.get_obj
+device: cpu
+progress_bar: null
