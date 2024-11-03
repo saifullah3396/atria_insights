@@ -29,7 +29,7 @@ class ExplanationResultsSaver:
         output: ExplanationModelOutput,
     ) -> None:
         # get sample keys
-        for batch_idx in range(len(batch["__index__"])):
+        for batch_idx in range(len(batch["__key__"])):
             # get unique sample key
             sample_key = batch["__key__"][batch_idx]
 
