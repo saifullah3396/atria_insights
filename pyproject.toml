@@ -1,12 +1,12 @@
 [build-system]
-requires = ["setuptools"]  # REQUIRED if [build-system] table is used
+requires = ["setuptools>=60", "setuptools-scm>=8.0", "wheel"]
 build-backend = "setuptools.build_meta"  # If not defined, then legacy behavior can happen.
 
 
 [project]
 name = "insightx"
 version = "0.0.0"  # REQUIRED, although can be dynamic
-description = "TorchXAI Explanation Framework is a PyTorch-Ignite based framework designed for evaluating machine learning models using explainability techniques in a scalable manner."
+description = "InsightX is a PyTorch-Ignite based framework designed for evaluating machine learning models using explainability techniques in a scalable manner."
 readme = "README.md"
 requires-python = ">=3.8"
 license = {file = "LICENSE.txt"}
@@ -51,7 +51,6 @@ dependencies = [
 [project.optional-dependencies]
 test = ["coverage"]
 
-
 [project.urls]
 "Homepage" = "https://git.opendfki.de/saifullah/insightx.git/"
 "Bug Reports" = "https://git.opendfki.de/saifullah/insightx.git/"
@@ -71,3 +70,6 @@ pythonpath = [
 
 [tool.distutils.egg_info]
 egg_base = "."
+
+[project.scripts]
+"insightx.explain" = "insightx.task_runners.model_explainer:app"

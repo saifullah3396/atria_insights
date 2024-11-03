@@ -16,9 +16,7 @@ from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig
 
 from insightx.engines.explanation_engine import ExplanationEngine
-from insightx.task_modules.explanation_task_module import (
-    ExplanationTaskModule,
-)
+from insightx.task_modules.explanation_task_module import ExplanationTaskModule
 
 
 class ModelExplainer:
@@ -99,7 +97,7 @@ class ModelExplainer:
 
 @hydra.main(
     version_base=None,
-    config_path="./conf",
+    config_path="../conf",
     config_name="model_explainer",
 )
 def app(cfg: ModelExplainer) -> None:

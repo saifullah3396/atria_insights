@@ -20,6 +20,9 @@ ModuleRegistry.register_task_runner(
             "run": {"dir": TRAINER_DIR},
             "output_subdir": "hydra",
             "job": {"chdir": False},
+            "searchpath": [
+                "pkg://atria/conf",
+            ],
         },
     ),
 )
