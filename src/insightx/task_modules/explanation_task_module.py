@@ -29,13 +29,15 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         super().__init__(*args, **kwargs)
         self._model_explainability_wrapper = model_explainability_wrapper
 
+    def toggle_explainability(self, state: bool):
+        self.torch_model.toggle_explainability(state)
+
     def _build_model(
         self,
         checkpoint: Optional[Dict[str, Any]] = None,
     ):
         model = super()._build_model(checkpoint=checkpoint)
         model = self._model_explainability_wrapper(SoftmaxWrapper(model))
-        model.toggle_explainability(True)
         return model
 
     def _required_keys_for_explainability(self) -> List[str]:
@@ -127,6 +129,12 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
                 input_keys, explainer.explain(**explainer_kwargs)
             )
         }
+
+        logger.debug(f"Explanations generated with the following information:")
+        logger.debug(f"Explainer: {explainer.__class__.__name__}")
+        logger.debug(f"Explaination keys: {explanations.keys()}")
+        logger.debug(f"Explaination shapes: {[v.shape for v in explanations.values()]}")
+        logger.debug(f"Explaination types: {[v.dtype for v in explanations.values()]}")
 
         # detach tensors
         apply_to_tensor(explainer_inputs.inputs, torch.detach)
