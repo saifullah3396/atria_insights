@@ -1,6 +1,6 @@
 # @package __global__
 _target_: hydra_zen.funcs.zen_processing
-_zen_target: insightx.model_explainer.ModelExplainer
+_zen_target: insightx.task_runners.model_explainer.ModelExplainer
 _zen_exclude:
 - hydra
 defaults:
@@ -25,3 +25,5 @@ hydra:
   output_subdir: hydra
   job:
     chdir: false
+  searchpath:
+  - pkg://atria/conf

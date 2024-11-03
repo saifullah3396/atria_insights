@@ -23,3 +23,4 @@ output_transform:
   _target_: hydra_zen.funcs.get_obj
 device: cpu
 progress_bar: null
+attached_name: null

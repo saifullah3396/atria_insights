@@ -4,7 +4,6 @@ defaults:
 - _self_
 - /engine_step@engine_step: default_explanation_step
 - /explainer@explainer: grad/saliency
-- /metric@metrics.completeness: axiomatic/completeness
 tb_logger: null
 epoch_length: null
 outputs_to_running_avg: null
