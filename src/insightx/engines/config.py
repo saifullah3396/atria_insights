@@ -20,6 +20,6 @@ ModuleRegistry.register_engine(
         "_self_",
         {"/engine_step@engine_step": f"default_explanation_step"},
         {"/explainer@explainer": "grad/saliency"},
-        {"/metric@metrics.completeness": "axiomatic/completeness"},
+        # {"/metric@metrics.completeness": "axiomatic/completeness"},
     ],
 )
