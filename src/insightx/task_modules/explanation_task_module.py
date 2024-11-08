@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+from collections import OrderedDict
 from functools import partial
 from typing import Any, Dict, List, Optional, Union
 
@@ -10,12 +11,11 @@ from atria._core.utilities.logging import get_logger
 from atria._core.utilities.typing import BatchDict
 from ignite.engine import Engine
 from ignite.utils import apply_to_tensor
-from torchxai.explainers.explainer import Explainer
-
 from insightx.model_explainability_wrappers.base import ModelExplainabilityWrapper
 from insightx.task_modules.model_output_wrappers import SoftmaxWrapper
 from insightx.task_modules.utilities import _get_model_forward_fn
 from insightx.utilities.containers import ExplainerArguments, ExplanationModelOutput
+from torchxai.explainers.explainer import Explainer
 
 logger = get_logger(__name__)
 
@@ -110,17 +110,26 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
                 explainer_args.baselines.keys() == explainer_args.inputs.keys()
             ), f"Baselines must have the same keys as inputs. Got {explainer_args.baselines.keys()} "
             explainer_kwargs["baselines"] = tuple(explainer_args.baselines.values())
-        if "feature_masks" in possible_args:
+        if "feature_mask" in possible_args:
             assert (
                 explainer_args.feature_masks.keys() == explainer_args.inputs.keys()
             ), f"Feature masks must have the same keys as inputs. Got {explainer_args.feature_masks.keys()} "
-            explainer_kwargs["feature_masks"] = tuple(
+            explainer_kwargs["feature_mask"] = tuple(
                 explainer_args.feature_masks.values()
             )
         if "train_baselines" in possible_args:
             assert (
                 explainer_args.train_baselines.keys() == explainer_args.inputs.keys()
             ), f"Train baselines must have the same keys as inputs. Got {explainer_args.train_baselines.keys()} "
+
+            # convert dict to ordered dict
+            explainer_args.train_baselines = OrderedDict(
+                {
+                    key: explainer_args.train_baselines[key]
+                    for key in explainer_args.inputs.keys()
+                }
+            )
+
             for train_baselines, inputs in zip(
                 explainer_args.train_baselines.values(), explainer_args.inputs.values()
             ):
