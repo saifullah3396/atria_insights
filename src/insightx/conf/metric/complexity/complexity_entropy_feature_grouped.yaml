@@ -3,6 +3,7 @@ _partial_: true
 metric_func:
   _target_: torchxai.metrics.complexity.complexity_entropy.complexity_entropy_feature_grouped
   _partial_: true
+  feature_mask: null
   is_multi_target: false
   return_dict: false
 output_transform:

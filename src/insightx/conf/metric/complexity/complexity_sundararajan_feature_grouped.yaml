@@ -3,6 +3,7 @@ _partial_: true
 metric_func:
   _target_: torchxai.metrics.complexity.complexity_sundararajan.complexity_sundararajan_feature_grouped
   _partial_: true
+  feature_mask: null
   eps: 1.0e-05
   normalize_attribution: true
   is_multi_target: false

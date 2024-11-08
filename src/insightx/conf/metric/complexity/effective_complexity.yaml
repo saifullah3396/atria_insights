@@ -9,10 +9,12 @@ metric_func:
   perturb_func:
     _target_: torchxai.metrics._utils.perturbation.default_random_perturb_func
     _partial_: false
-    # noise_scale: 0.02
+    noise_scale: 0.02
   n_perturbations_per_feature: 10
   max_features_processed_per_batch: null
   eps: 1.0e-05
+  ignored_indices: null
+  return_ratio: false
   use_absolute_attributions: true
   is_multi_target: false
   show_progress: false
