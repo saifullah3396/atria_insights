@@ -17,4 +17,3 @@ logging:
 metrics: null
 metric_logging_prefix: null
 test_run: false
-is_single_output: true

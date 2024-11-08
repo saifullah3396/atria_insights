@@ -8,13 +8,13 @@ from atria._core.models.utilities.common import _validate_keys_in_batch
 from atria._core.utilities.common import _get_possible_args, _get_required_args
 from atria._core.utilities.logging import get_logger
 from atria._core.utilities.typing import BatchDict
+from ignite.engine import Engine
 from ignite.utils import apply_to_tensor
-from torchxai.explainers.explainer import Explainer
-
 from insightx.model_explainability_wrappers.base import ModelExplainabilityWrapper
 from insightx.task_modules.model_output_wrappers import SoftmaxWrapper
 from insightx.task_modules.utilities import _get_model_forward_fn
-from insightx.utilities.containers import ExplainerInputs, ExplanationModelOutput
+from insightx.utilities.containers import ExplainerArguments, ExplanationModelOutput
+from torchxai.explainers.explainer import Explainer
 
 logger = get_logger(__name__)
 
@@ -23,11 +23,13 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
     def __init__(
         self,
         model_explainability_wrapper: partial[ModelExplainabilityWrapper],
+        is_multi_target: bool = False,
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self._model_explainability_wrapper = model_explainability_wrapper
+        self._is_multi_target = is_multi_target
 
     def toggle_explainability(self, state: bool):
         self.torch_model.toggle_explainability(state)
@@ -41,7 +43,7 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         return model
 
     def _required_keys_for_explainability(self) -> List[str]:
-        return []
+        return ["__key__"]
 
     def _filter_batch_keys_for_model_forward(self, batch):
         valid_params = set(
@@ -71,7 +73,6 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         self._batch_validated = True
 
     def _explainable_model_forward(self, inputs, additional_forward_kwargs):
-        _get_model_forward_fn(self._torch_model)
         required_args = tuple(
             _get_required_args(_get_model_forward_fn(self._torch_model))
         )
@@ -86,33 +87,34 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
 
     def _explainer_forward(
         self,
+        batch: BatchDict,
         explainer: partial[Explainer],
-        explainer_inputs: ExplainerInputs,
+        explainer_args: ExplainerArguments,
         target: Union[torch.Tensor, List[torch.Tensor]],
     ):
         # initialize explainer
-        explainer = explainer(self.torch_model)
+        explainer = explainer(self.torch_model, is_multi_target=self._is_multi_target)
 
         possible_args = _get_possible_args(explainer.explain)
-        input_keys = explainer_inputs.inputs.keys()
+        input_keys = explainer_args.inputs.keys()
         explainer_kwargs = {
-            "inputs": tuple(explainer_inputs.inputs.values()),
+            "inputs": tuple(explainer_args.inputs.values()),
             "additional_forward_args": tuple(
-                explainer_inputs.additional_forward_kwargs.values()
+                explainer_args.additional_forward_kwargs.values()
             ),
             "target": target,
         }
         if "baselines" in possible_args:
             assert (
-                explainer_inputs.baselines.keys() == explainer_inputs.inputs.keys()
-            ), f"Baselines must have the same keys as inputs. Got {explainer_inputs.baselines.keys()} "
-            explainer_kwargs["baselines"] = tuple(explainer_inputs.baselines.values())
+                explainer_args.baselines.keys() == explainer_args.inputs.keys()
+            ), f"Baselines must have the same keys as inputs. Got {explainer_args.baselines.keys()} "
+            explainer_kwargs["baselines"] = tuple(explainer_args.baselines.values())
         if "feature_masks" in possible_args:
             assert (
-                explainer_inputs.feature_masks.keys() == explainer_inputs.inputs.keys()
-            ), f"Feature masks must have the same keys as inputs. Got {explainer_inputs.feature_masks.keys()} "
+                explainer_args.feature_masks.keys() == explainer_args.inputs.keys()
+            ), f"Feature masks must have the same keys as inputs. Got {explainer_args.feature_masks.keys()} "
             explainer_kwargs["feature_masks"] = tuple(
-                explainer_inputs.feature_masks.values()
+                explainer_args.feature_masks.values()
             )
         explainer_kwargs["inputs"] = tuple(
             x.requires_grad_() for x in explainer_kwargs["inputs"]
@@ -137,26 +139,47 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         logger.debug(f"Explaination types: {[v.dtype for v in explanations.values()]}")
 
         # detach tensors
-        apply_to_tensor(explainer_inputs.inputs, torch.detach)
-        apply_to_tensor(explainer_inputs.baselines, torch.detach)
-        apply_to_tensor(explainer_inputs.additional_forward_kwargs, torch.detach)
-        apply_to_tensor(explainer_inputs.feature_masks, torch.detach)
+        apply_to_tensor(explainer_args.inputs, torch.detach)
+        apply_to_tensor(explainer_args.baselines, torch.detach)
+        apply_to_tensor(explainer_args.additional_forward_kwargs, torch.detach)
+        apply_to_tensor(explainer_args.feature_masks, torch.detach)
         apply_to_tensor(explanations, torch.detach)
         apply_to_tensor(target, torch.detach)
 
         return ExplanationModelOutput(
             explanations=explanations,
-            reduced_explanations=self._reduce_explanations(explanations),
-            explainer_inputs=explainer_inputs,
+            reduced_explanations=self._reduce_explanations(
+                batch, explainer_args, explanations
+            ),
+            explainer_args=explainer_args,
             target=target,
         )
+
+    def train_baselines_generation_step(
+        self,
+        batch: BatchDict,
+        **kwargs,
+    ) -> torch.Tensor:
+        # validate model is built
+        self._validate_model_built()
+
+        # validate batch keys
+        _validate_keys_in_batch(
+            keys=self._required_keys_for_explainability(), batch=batch
+        )
+
+        return self._prepare_train_baselines(batch=batch)
 
     def explanation_step(
         self,
         batch: BatchDict,
         explainer: partial[Explainer],
+        explanation_engine: Engine,
         **kwargs,
     ) -> ExplanationModelOutput:
+        if explanation_engine.state.skip_batch:
+            return ExplanationModelOutput()
+
         # validate model is built
         self._validate_model_built()
 
@@ -166,15 +189,16 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         )
 
         # prepare inputs for explanation
-        explainer_inputs = self._prepare_explainer_inputs(batch=batch)
+        explainer_args = self._prepare_explainer_arguments(batch=batch)
 
         # prepare target
-        target = self._prepare_target(batch=batch, explainer_inputs=explainer_inputs)
+        target = self._prepare_target(batch=batch, explainer_args=explainer_args)
 
         # perform explainer forward
         explainer_output = self._explainer_forward(
+            batch=batch,
             explainer=explainer,
-            explainer_inputs=explainer_inputs,
+            explainer_args=explainer_args,
             target=target,
         )
 
@@ -184,7 +208,13 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         return explainer_output
 
     @abstractmethod
-    def _prepare_explainer_inputs(self, batch: BatchDict, **kwargs) -> ExplainerInputs:
+    def _prepare_explainer_arguments(
+        self, batch: BatchDict, **kwargs
+    ) -> ExplainerArguments:
+        pass
+
+    @abstractmethod
+    def _prepare_train_baselines(self, batch: BatchDict, **kwargs) -> torch.Tensor:
         pass
 
     @abstractmethod
@@ -193,5 +223,10 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
     ) -> Union[torch.Tensor, List[torch.Tensor]]:
         pass
 
-    def _reduce_explanations(self, explanations):
+    def _reduce_explanations(
+        self,
+        batch: BatchDict,
+        explainer_args: ExplainerArguments,
+        explanations: Dict[str, torch.Tensor],
+    ) -> Dict[str, torch.Tensor]:
         return explanations

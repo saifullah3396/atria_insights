@@ -1,10 +1,7 @@
 from insightx.model_explainability_wrappers.base import ModelExplainabilityWrapper
-from insightx.task_modules.model_output_wrappers import SoftmaxWrapper
 
 
 def _unwrap_model(model):
-    if isinstance(model, SoftmaxWrapper):
-        return _unwrap_model(model.model)
     if isinstance(model, ModelExplainabilityWrapper):
         return _unwrap_model(model.model)
     return model

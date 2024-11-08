@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Mapping, Union
+from typing import Any, Mapping
 
 import torch
 from atria._core.constants import DataKeys
@@ -8,7 +8,7 @@ from atria._core.utilities.logging import get_logger
 from ignite.engine import Engine
 from insightx.utilities.common import _flatten_dict
 from insightx.utilities.containers import ExplanationModelOutput
-from insightx.utilities.h5io import HFIOMultiOutput, HFIOSingleOutput
+from insightx.utilities.h5io import HFIO
 
 logger = get_logger(__name__)
 
@@ -16,19 +16,18 @@ logger = get_logger(__name__)
 class ExplanationResultsSaver:
     def __init__(
         self,
-        output_file_path: Union[HFIOSingleOutput, HFIOMultiOutput],
-        is_single_output: bool = True,
+        output_file_path: HFIO,
     ) -> None:
         self._output_file_path = output_file_path
-        self._is_single_output = is_single_output
 
     def _save_metadata(
         self,
-        hfio: Union[HFIOSingleOutput, HFIOMultiOutput],
+        hfio: HFIO,
         batch: Mapping[str, torch.Tensor],
         output: ExplanationModelOutput,
     ) -> None:
         # get sample keys
+        batch_size = len(batch["__key__"])
         for batch_idx in range(len(batch["__key__"])):
             # get unique sample key
             sample_key = batch["__key__"][batch_idx]
@@ -48,15 +47,22 @@ class ExplanationResultsSaver:
                     )
 
             # store predicted or explanation target labels
+            if len(output.target) == batch_size:
+                target = output.target[batch_idx]
+
             hfio.save_attribute(
                 "pred_or_expl_target_labels",
-                output.target.detach().cpu().numpy(),
+                (
+                    target.detach().cpu().numpy()
+                    if isinstance(target, torch.Tensor)
+                    else target
+                ),
                 sample_key,
             )
 
     def _save_explanations(
         self,
-        hfio: Union[HFIOSingleOutput, HFIOMultiOutput],
+        hfio: HFIO,
         explanations: torch.Tensor,
         batch: Mapping[str, torch.Tensor],
     ) -> None:
@@ -72,7 +78,7 @@ class ExplanationResultsSaver:
 
     def _save_metrics(
         self,
-        hfio: Union[HFIOSingleOutput, HFIOMultiOutput],
+        hfio: HFIO,
         metrics: Mapping[str, Any],
         batch: Mapping[str, torch.Tensor],
     ) -> None:
@@ -87,6 +93,14 @@ class ExplanationResultsSaver:
                     sample_key,
                 )
 
+    def key_exists(self, key: str, sample_key: str) -> bool:
+        with HFIO(self._output_file_path) as hfio:
+            return hfio.key_exists(key, sample_key)
+
+    def sample_exists(self, sample_key: str) -> bool:
+        with HFIO(self._output_file_path) as hfio:
+            return hfio.sample_exists(sample_key)
+
     def __call__(self, engine: Engine) -> None:
         assert isinstance(
             engine.state.output, ExplanationModelOutput
@@ -94,6 +108,9 @@ class ExplanationResultsSaver:
 
         batch = engine.state.batch
         output: ExplanationModelOutput = engine.state.output
+        if output.explanations is None:
+            return
+
         metrics = {
             k: v
             for k, v in engine.state.metrics.items()
@@ -104,11 +121,7 @@ class ExplanationResultsSaver:
         # flatten the dict of metrics
         metrics = _flatten_dict(metrics)
 
-        with (
-            HFIOSingleOutput(self._output_file_path)
-            if self._is_single_output
-            else HFIOMultiOutput(self._output_file_path)
-        ) as hfio:
+        with HFIO(self._output_file_path) as hfio:
             self._save_metadata(hfio, batch, output)
             self._save_explanations(hfio, output.reduced_explanations, batch)
             self._save_metrics(hfio, metrics, batch)

@@ -5,7 +5,7 @@ import torch
 
 
 @dataclasses.dataclass
-class ExplainerInputs:
+class ExplainerArguments:
     inputs: Mapping[str, torch.Tensor] = None
     baselines: Mapping[str, torch.Tensor] = None
     feature_masks: Mapping[str, torch.Tensor] = None
@@ -18,5 +18,5 @@ class ExplainerInputs:
 class ExplanationModelOutput:
     explanations: Union[torch.Tensor, List[torch.Tensor]] = None
     reduced_explanations: Union[torch.Tensor, List[torch.Tensor]] = None
-    explainer_inputs: ExplainerInputs = None
+    explainer_args: ExplainerArguments = None
     target: Union[torch.Tensor, List[torch.Tensor]] = None

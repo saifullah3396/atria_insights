@@ -12,11 +12,12 @@ from atria._core.utilities.logging import get_logger
 from ignite.engine import Engine
 from ignite.handlers import TensorboardLogger
 from ignite.metrics import Metric
+from torch.utils.data import DataLoader
+from torchxai.explainers.explainer import Explainer
+
 from insightx.engines.explanation_results_saver import ExplanationResultsSaver
 from insightx.engines.explanation_step import ExplanationStep
 from insightx.task_modules.explanation_task_module import ExplanationTaskModule
-from torch.utils.data import DataLoader
-from torchxai.explainers.explainer import Explainer
 
 logger = get_logger(__name__)
 
@@ -37,13 +38,13 @@ class ExplanationEngine(AtriaEngine):
         metrics: Optional[Dict[str, partial[Metric]]] = None,
         metric_logging_prefix: Optional[str] = None,
         test_run: bool = False,
-        is_single_output: bool = True,
+        force_recompute: bool = False,
     ):
         _validate_partial_class(engine_step, ExplanationStep, "engine_step")
         self._explainer = explainer
-        self._is_single_output = is_single_output
         self._progress_bar = None
         self._explanation_results_saver = None
+        self._force_recompute = force_recompute
         super().__init__(
             output_dir=output_dir,
             task_module=task_module,
@@ -61,8 +62,10 @@ class ExplanationEngine(AtriaEngine):
         )
 
     def _initialize_components(self):
-        from atria._core.training.utilities.progress_bar import TqdmToLogger
-        from ignite.handlers import ProgressBar
+        from atria._core.training.utilities.progress_bar import (
+            AtriaProgressBar,
+            TqdmToLogger,
+        )
 
         # initialize the engine step
         self._engine_step = self._engine_step(
@@ -75,11 +78,10 @@ class ExplanationEngine(AtriaEngine):
         self._explanation_results_saver = ExplanationResultsSaver(
             output_file_path=Path(self._output_dir)
             / f"{self._explainer.func.__name__}.h5",
-            is_single_output=self._is_single_output,
         )
 
         # create progress bar for this engine
-        self._progress_bar = ProgressBar(
+        self._progress_bar = AtriaProgressBar(
             desc=f"Stage [{self._engine_step.stage}]",
             persist=True,
             file=TqdmToLogger(get_logger()),  # main logger causes problems here
@@ -127,7 +129,7 @@ class ExplanationEngine(AtriaEngine):
     def _configure_tb_logger(self, engine: Engine):
         pass  # no need to configure tb logger for explanation engine as we save outputs using ExplanationResultsSaver
 
-    def _configure_explanation_output_saver(
+    def _configure_explanation_results_saver(
         self, engine: Engine, output_dir: str
     ) -> None:
         from ignite.engine import Events
@@ -141,11 +143,50 @@ class ExplanationEngine(AtriaEngine):
                 Events.ITERATION_COMPLETED, self._explanation_results_saver
             )
 
+    def _configure_batch_done(self, engine: Engine):
+        from ignite.engine import Events
+
+        def skip_if_batch_done(
+            engine,
+        ):
+            if self._force_recompute:
+                engine.state.skip_batch = False
+                return
+
+            batch_exists = [
+                self._explanation_results_saver.sample_exists(key)
+                for key in engine.state.batch["__key__"]
+            ]
+            metrics_exist = (
+                [
+                    self._explanation_results_saver.key_exists(sample_key, metric_key)
+                    for sample_key, metric_key in zip(
+                        engine.state.batch["__key__"], self._metrics.keys()
+                    )
+                ]
+                if self._metrics is not None
+                else []
+            )
+            batch_done = all(batch_exists + metrics_exist)
+            if batch_done:
+                engine.state.skip_batch = True
+            else:
+                engine.state.skip_batch = False
+
+        engine.add_event_handler(Events.ITERATION_STARTED, skip_if_batch_done)
+
     def _configure_engine(
         self, engine: Engine, output_dir: Optional[Union[str, Path]] = None
     ):
+        self._configure_batch_done(engine=engine)
         self._configure_test_run(engine=engine)
         self._configure_metrics(engine=engine)
         self._configure_progress_bar(engine=engine)
         self._configure_tb_logger(engine=engine)
-        self._configure_explanation_output_saver(engine=engine, output_dir=output_dir)
+        self._configure_explanation_results_saver(engine=engine, output_dir=output_dir)
+
+    def run(self):
+        self._task_module.toggle_explainability(True)
+        engine_output = super().run()
+        self._task_module.toggle_explainability(False)
+        return engine_output

@@ -9,11 +9,9 @@ from atria._core.utilities.logging import get_logger
 from atria._core.utilities.typing import BatchDict
 from atria.models.task_modules.classification.image import ImageClassificationModule
 from ignite.contrib.handlers import TensorboardLogger
-
 from insightx.model_explainability_wrappers.base import ModelExplainabilityWrapper
 from insightx.task_modules.explanation_task_module import ExplanationTaskModule
-from insightx.task_modules.model_output_wrappers import SoftmaxWrapper
-from insightx.utilities.containers import ExplainerInputs
+from insightx.utilities.containers import ExplainerArguments
 
 logger = get_logger(__name__)
 
@@ -51,8 +49,7 @@ class ImageClassificationExplanationModule(
         model = super(ImageClassificationModule, self)._build_model(
             checkpoint=checkpoint
         )
-        model = self._model_explainability_wrapper(SoftmaxWrapper(model))
-        model.toggle_explainability(True)
+        model = self._model_explainability_wrapper(model)
         return model
 
     def _required_keys_for_explainability(self) -> List[str]:
@@ -60,19 +57,21 @@ class ImageClassificationExplanationModule(
         required_keys += [DataKeys.IMAGE]
         return required_keys
 
-    def _prepare_explainer_inputs(self, batch: BatchDict, **kwargs) -> ExplainerInputs:
+    def _prepare_explainer_arguments(
+        self, batch: BatchDict, **kwargs
+    ) -> ExplainerArguments:
         # prepare inputs for explainable model
-        return self.torch_model.prepare_explainable_inputs_from_inputs(**batch)
+        return self.torch_model.prepare_explainer_args(**batch)
 
-    def _prepare_target(self, batch: BatchDict, explainer_inputs: ExplainerInputs):
+    def _prepare_target(self, batch: BatchDict, explainer_args: ExplainerArguments):
         with torch.no_grad():
             if not self._explainable_model_output_validated:
                 self._torch_model.toggle_explainability(False)
                 standard_model_outputs = self._model_forward(batch)
                 self._torch_model.toggle_explainability(True)
                 explainable_model_outputs = self._explainable_model_forward(
-                    inputs=explainer_inputs.inputs,
-                    additional_forward_kwargs=explainer_inputs.additional_forward_kwargs,
+                    inputs=explainer_args.inputs,
+                    additional_forward_kwargs=explainer_args.additional_forward_kwargs,
                 )
                 assert torch.allclose(
                     standard_model_outputs,
@@ -85,8 +84,8 @@ class ImageClassificationExplanationModule(
                 return explainable_model_outputs.argmax(dim=-1)
             else:
                 explainable_model_outputs = self._explainable_model_forward(
-                    inputs=explainer_inputs.inputs,
-                    additional_forward_kwargs=explainer_inputs.additional_forward_kwargs,
+                    inputs=explainer_args.inputs,
+                    additional_forward_kwargs=explainer_args.additional_forward_kwargs,
                 )
                 return explainable_model_outputs.argmax(dim=-1)
 

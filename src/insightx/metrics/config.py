@@ -21,6 +21,13 @@ from torchxai.metrics._utils.perturbation import (
     default_infidelity_perturb_fn,
     default_random_perturb_func,
 )
+from torchxai.metrics.complexity.complexity_entropy import (
+    complexity_entropy_feature_grouped,
+)
+from torchxai.metrics.complexity.complexity_sundararajan import (
+    complexity_sundararajan_feature_grouped,
+)
+from torchxai.metrics.complexity.sparseness import sparseness_feature_grouped
 
 # axiomatic
 ModuleRegistry.register_metric(
@@ -82,10 +89,34 @@ ModuleRegistry.register_metric(
     sub_group="complexity",
     module=_get_parent_module(__name__) + ".torchxai_metric",
     registered_class_or_func="TorchXAIMetric",
+    name=complexity_entropy_feature_grouped.__name__,
+    zen_partial=True,
+    metric_func=builds(
+        complexity_entropy_feature_grouped,
+        populate_full_signature=True,
+        zen_partial=True,
+    ),
+)
+ModuleRegistry.register_metric(
+    sub_group="complexity",
+    module=_get_parent_module(__name__) + ".torchxai_metric",
+    registered_class_or_func="TorchXAIMetric",
     name=complexity_sundararajan.__name__,
     zen_partial=True,
     metric_func=builds(
         complexity_sundararajan,
+        populate_full_signature=True,
+        zen_partial=True,
+    ),
+)
+ModuleRegistry.register_metric(
+    sub_group="complexity",
+    module=_get_parent_module(__name__) + ".torchxai_metric",
+    registered_class_or_func="TorchXAIMetric",
+    name=complexity_sundararajan_feature_grouped.__name__,
+    zen_partial=True,
+    metric_func=builds(
+        complexity_sundararajan_feature_grouped,
         populate_full_signature=True,
         zen_partial=True,
     ),
@@ -115,6 +146,18 @@ ModuleRegistry.register_metric(
     zen_partial=True,
     metric_func=builds(
         sparseness,
+        populate_full_signature=True,
+        zen_partial=True,
+    ),
+)
+ModuleRegistry.register_metric(
+    sub_group="complexity",
+    module=_get_parent_module(__name__) + ".torchxai_metric",
+    registered_class_or_func="TorchXAIMetric",
+    name=sparseness_feature_grouped.__name__,
+    zen_partial=True,
+    metric_func=builds(
+        sparseness_feature_grouped,
         populate_full_signature=True,
         zen_partial=True,
     ),
