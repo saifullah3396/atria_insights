@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import h5py
 import numpy as np
+import torch
 
 
 class HFDataset:
@@ -10,7 +11,7 @@ class HFDataset:
         self.mode = mode
         self.hf = None
 
-    def __enter__(self) -> HFIO:
+    def __enter__(self) -> HFSampleSaver:
         self.hf = h5py.File(self.filepath, self.mode)
         return self
 
@@ -19,7 +20,7 @@ class HFDataset:
             self.hf.close()
             self.hf = None
 
-    def save(self, key: str, data: np.ndarray) -> None:
+    def save(self, key: str, data: torch.Tensor) -> None:
         """
         Saves the dataset to the HDF5 file under the given key.
 
@@ -34,32 +35,32 @@ class HFDataset:
             raise ValueError(f"Key '{key}' already exists in the file.")
 
         # Create a dataset with max shape to allow future resizing
-        self.hf.create_dataset(key, data=data.cpu().numpy())
+        self.hf.create_dataset(key, data=data.detach().cpu().numpy())
 
-    def load(self, key: str) -> np.ndarray:
+    def load(self):
         """
-        Loads the dataset from the HDF5 file under the given key.
+        Loads the dataset from the HDF5 file.
 
-        Args:
-            key (str): The key to identify the data.
-            data: The data to be saved.
+        Returns:
+            dict: The data loaded from the file.
         """
-        if key not in self.hf:
-            raise KeyError(f"Key '{key}' does not exist under key '{key}'.")
+        data = {}
+        for key in self.hf:
+            data[key] = torch.from_numpy(self.hf[key][:])
 
-        return self.hf[key][:]
+        return data
 
     def key_exists(self, key: str) -> np.ndarray:
         return key in self.hf
 
 
-class HFIO:
+class HFSampleSaver:
     def __init__(self, filepath: str, mode="a"):
         self.filepath = filepath
         self.mode = mode
         self.hf = None
 
-    def __enter__(self) -> HFIO:
+    def __enter__(self) -> HFSampleSaver:
         self.hf = h5py.File(self.filepath, self.mode)
         return self
 
