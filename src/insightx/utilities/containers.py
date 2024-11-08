@@ -12,6 +12,7 @@ class ExplainerArguments:
     additional_forward_kwargs: Dict[str, Any] = None
     constant_shifts: Mapping[str, torch.Tensor] = None
     input_layer_names: Mapping[str, str] = None
+    train_baselines: Mapping[str, torch.Tensor] = None
 
 
 @dataclasses.dataclass

@@ -10,11 +10,12 @@ from atria._core.utilities.logging import get_logger
 from atria._core.utilities.typing import BatchDict
 from ignite.engine import Engine
 from ignite.utils import apply_to_tensor
+from torchxai.explainers.explainer import Explainer
+
 from insightx.model_explainability_wrappers.base import ModelExplainabilityWrapper
 from insightx.task_modules.model_output_wrappers import SoftmaxWrapper
 from insightx.task_modules.utilities import _get_model_forward_fn
 from insightx.utilities.containers import ExplainerArguments, ExplanationModelOutput
-from torchxai.explainers.explainer import Explainer
 
 logger = get_logger(__name__)
 
@@ -116,6 +117,19 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
             explainer_kwargs["feature_masks"] = tuple(
                 explainer_args.feature_masks.values()
             )
+        if "train_baselines" in possible_args:
+            assert (
+                explainer_args.train_baselines.keys() == explainer_args.inputs.keys()
+            ), f"Train baselines must have the same keys as inputs. Got {explainer_args.train_baselines.keys()} "
+            for train_baselines, inputs in zip(
+                explainer_args.train_baselines.values(), explainer_args.inputs.values()
+            ):
+                assert (
+                    train_baselines.shape[1:] == inputs.shape[1:]
+                ), f"Train baselines must have the same shape as inputs. Got {train_baselines.shape} and {inputs.shape}"
+            explainer_kwargs["train_baselines"] = tuple(
+                explainer_args.train_baselines.values()
+            )
         explainer_kwargs["inputs"] = tuple(
             x.requires_grad_() for x in explainer_kwargs["inputs"]
         )
@@ -174,6 +188,7 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         self,
         batch: BatchDict,
         explainer: partial[Explainer],
+        train_baselines: Dict[str, torch.Tensor],
         explanation_engine: Engine,
         **kwargs,
     ) -> ExplanationModelOutput:
@@ -190,6 +205,7 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
 
         # prepare inputs for explanation
         explainer_args = self._prepare_explainer_arguments(batch=batch)
+        explainer_args.train_baselines = train_baselines
 
         # prepare target
         target = self._prepare_target(batch=batch, explainer_args=explainer_args)
@@ -208,18 +224,17 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         return explainer_output
 
     @abstractmethod
-    def _prepare_explainer_arguments(
-        self, batch: BatchDict, **kwargs
-    ) -> ExplainerArguments:
+    def _prepare_explainer_arguments(self, batch: BatchDict) -> ExplainerArguments:
         pass
 
     @abstractmethod
-    def _prepare_train_baselines(self, batch: BatchDict, **kwargs) -> torch.Tensor:
+    def _prepare_train_baselines(self, batch: BatchDict) -> torch.Tensor:
         pass
 
     @abstractmethod
     def _prepare_target(
-        self, batch: BatchDict, **kwargs
+        self,
+        batch: BatchDict,
     ) -> Union[torch.Tensor, List[torch.Tensor]]:
         pass
 

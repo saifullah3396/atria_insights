@@ -16,6 +16,9 @@ from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig
 
 from insightx.engines.explanation_engine import ExplanationEngine
+from insightx.engines.train_baselines_generation_engine import (
+    TrainBaselinesGenerationEngine,
+)
 from insightx.task_modules.explanation_task_module import ExplanationTaskModule
 
 
@@ -32,6 +35,7 @@ class ModelExplainer:
         backend: Optional[str] = "nccl",
         n_devices: int = 1,
         test_model: bool = False,
+        max_train_baselines: int = 100,
     ):
         self._output_dir = output_dir
         self._seed = seed
@@ -43,6 +47,7 @@ class ModelExplainer:
         self._test_engine = test_engine
         self._explanation_engine = explanation_engine
         self._test_model = test_model
+        self._max_train_baselines = max_train_baselines
 
     def run(self, hydra_config: HydraConfig, runtime_cfg: DictConfig) -> None:
         logger = get_logger(hydra_config=hydra_config)
@@ -83,12 +88,23 @@ class ModelExplainer:
             # run the test engine
             self._test_engine.run()
 
+        # generate training baselines
+        train_baselines_generation_engine = TrainBaselinesGenerationEngine(
+            output_dir=output_dir,
+            task_module=task_module,
+            dataloader=self._data_module.train_dataloader(),
+            device=device,
+            max_train_baselines=self._max_train_baselines,
+        )
+        train_baselines = train_baselines_generation_engine.run()
+
         # initilize the test engine from partial
         self._explanation_engine = self._explanation_engine(
             output_dir=output_dir,
             task_module=task_module,
             dataloader=self._data_module.test_dataloader(),
             device=device,
+            train_baselines=train_baselines,
         )
 
         # run the test engine

@@ -29,6 +29,7 @@ class ExplanationEngine(AtriaEngine):
         task_module: ExplanationTaskModule,
         explainer: partial[Explainer],
         dataloader: Union[DataLoader, wds.WebLoader],
+        train_baselines: Dict[str, torch.Tensor],
         device: Union[str, torch.device],
         engine_step: partial[ExplanationStep],
         tb_logger: Optional[TensorboardLogger] = None,
@@ -42,7 +43,7 @@ class ExplanationEngine(AtriaEngine):
     ):
         _validate_partial_class(engine_step, ExplanationStep, "engine_step")
         self._explainer = explainer
-        self._progress_bar = None
+        self._train_baselines = train_baselines
         self._explanation_results_saver = None
         self._force_recompute = force_recompute
         super().__init__(
@@ -72,6 +73,7 @@ class ExplanationEngine(AtriaEngine):
             task_module=self._task_module,
             explainer=self._explainer,
             device=self._device,
+            train_baselines=self._train_baselines,
         )
 
         # initialize the output saver
@@ -129,9 +131,7 @@ class ExplanationEngine(AtriaEngine):
     def _configure_tb_logger(self, engine: Engine):
         pass  # no need to configure tb logger for explanation engine as we save outputs using ExplanationResultsSaver
 
-    def _configure_explanation_results_saver(
-        self, engine: Engine, output_dir: str
-    ) -> None:
+    def _configure_explanation_results_saver(self, engine: Engine) -> None:
         from ignite.engine import Events
 
         logger.info(
@@ -175,15 +175,13 @@ class ExplanationEngine(AtriaEngine):
 
         engine.add_event_handler(Events.ITERATION_STARTED, skip_if_batch_done)
 
-    def _configure_engine(
-        self, engine: Engine, output_dir: Optional[Union[str, Path]] = None
-    ):
+    def _configure_engine(self, engine: Engine):
         self._configure_batch_done(engine=engine)
         self._configure_test_run(engine=engine)
         self._configure_metrics(engine=engine)
         self._configure_progress_bar(engine=engine)
         self._configure_tb_logger(engine=engine)
-        self._configure_explanation_results_saver(engine=engine, output_dir=output_dir)
+        self._configure_explanation_results_saver(engine=engine)
 
     def run(self):
         self._task_module.toggle_explainability(True)

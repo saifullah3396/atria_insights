@@ -3,9 +3,9 @@ from typing import Dict
 
 import torch
 from dacite import Any
-from insightx.utilities.common import filter_kwargs
-from insightx.utilities.containers import ExplainerArguments
 from pyparsing import abstractmethod
+
+from insightx.utilities.containers import ExplainerArguments
 
 
 def forward_wrapper(forward_func):
@@ -25,7 +25,6 @@ class ModelExplainabilityWrapper(torch.nn.Module):
     def model(self) -> torch.nn.Module:
         return self._model
 
-    @filter_kwargs
     def prepare_explainer_args(self, *args, **kwargs) -> ExplainerArguments:
         with torch.no_grad():
             inputs = self._prepare_explainable_inputs(*args, **kwargs)
@@ -44,7 +43,11 @@ class ModelExplainabilityWrapper(torch.nn.Module):
                 inputs=inputs,
                 baselines=baselines,
                 feature_masks=feature_masks,
-                additional_forward_kwargs=additional_forward_kwargs,
+                additional_forward_kwargs=(
+                    {}
+                    if additional_forward_kwargs is None
+                    else additional_forward_kwargs
+                ),
                 constant_shifts=constant_shifts,
                 input_layer_names=input_layer_names,
             )

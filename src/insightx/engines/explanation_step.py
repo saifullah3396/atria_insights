@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Any, Sequence, Tuple, Union
+from typing import Any, Dict, Sequence, Tuple, Union
 
 import torch
 from atria._core.training.engines.engine_steps.base import BaseEngineStep
@@ -18,12 +18,14 @@ class ExplanationStep(BaseEngineStep):
         task_module: ExplanationTaskModule,
         explainer: partial[Explainer],
         device: Union[str, torch.device],
+        train_baselines: Dict[str, torch.Tensor],
         non_blocking_tensor_conv: bool = False,
         with_amp: bool = False,
     ):
         self._task_module = task_module
         self._explainer = explainer
         self._device = torch.device(device)
+        self._train_baselines = train_baselines
         self._non_blocking_tensor_conv = non_blocking_tensor_conv
         self._with_amp = with_amp
 
@@ -62,5 +64,8 @@ class ExplanationStep(BaseEngineStep):
                     )
                     exit(1)
                 return self._task_module.explanation_step(
-                    batch=batch, explainer=self._explainer, explanation_engine=engine
+                    batch=batch,
+                    explainer=self._explainer,
+                    train_baselines=self._train_baselines,
+                    explanation_engine=engine,
                 )

@@ -6,9 +6,10 @@ import torch
 from atria._core.constants import DataKeys
 from atria._core.utilities.logging import get_logger
 from ignite.engine import Engine
+
 from insightx.utilities.common import _flatten_dict
 from insightx.utilities.containers import ExplanationModelOutput
-from insightx.utilities.h5io import HFIO
+from insightx.utilities.h5io import HFSampleSaver
 
 logger = get_logger(__name__)
 
@@ -16,13 +17,13 @@ logger = get_logger(__name__)
 class ExplanationResultsSaver:
     def __init__(
         self,
-        output_file_path: HFIO,
+        output_file_path: HFSampleSaver,
     ) -> None:
         self._output_file_path = output_file_path
 
     def _save_metadata(
         self,
-        hfio: HFIO,
+        hfio: HFSampleSaver,
         batch: Mapping[str, torch.Tensor],
         output: ExplanationModelOutput,
     ) -> None:
@@ -62,7 +63,7 @@ class ExplanationResultsSaver:
 
     def _save_explanations(
         self,
-        hfio: HFIO,
+        hfio: HFSampleSaver,
         explanations: torch.Tensor,
         batch: Mapping[str, torch.Tensor],
     ) -> None:
@@ -78,7 +79,7 @@ class ExplanationResultsSaver:
 
     def _save_metrics(
         self,
-        hfio: HFIO,
+        hfio: HFSampleSaver,
         metrics: Mapping[str, Any],
         batch: Mapping[str, torch.Tensor],
     ) -> None:
@@ -94,11 +95,11 @@ class ExplanationResultsSaver:
                 )
 
     def key_exists(self, key: str, sample_key: str) -> bool:
-        with HFIO(self._output_file_path) as hfio:
+        with HFSampleSaver(self._output_file_path) as hfio:
             return hfio.key_exists(key, sample_key)
 
     def sample_exists(self, sample_key: str) -> bool:
-        with HFIO(self._output_file_path) as hfio:
+        with HFSampleSaver(self._output_file_path) as hfio:
             return hfio.sample_exists(sample_key)
 
     def __call__(self, engine: Engine) -> None:
@@ -121,7 +122,7 @@ class ExplanationResultsSaver:
         # flatten the dict of metrics
         metrics = _flatten_dict(metrics)
 
-        with HFIO(self._output_file_path) as hfio:
+        with HFSampleSaver(self._output_file_path) as hfio:
             self._save_metadata(hfio, batch, output)
             self._save_explanations(hfio, output.reduced_explanations, batch)
             self._save_metrics(hfio, metrics, batch)
