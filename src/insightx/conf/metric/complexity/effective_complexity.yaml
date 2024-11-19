@@ -12,6 +12,7 @@ metric_func:
     noise_scale: 0.02
   n_perturbations_per_feature: 10
   max_features_processed_per_batch: null
+  frozen_features: null
   eps: 1.0e-05
   ignored_indices: null
   return_ratio: false

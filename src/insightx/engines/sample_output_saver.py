@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from atria._core.utilities.logging import get_logger
+from atria.core.utilities.logging import get_logger
 from ignite.engine import Engine
 
 from insightx.utilities.h5io import HFSampleSaver

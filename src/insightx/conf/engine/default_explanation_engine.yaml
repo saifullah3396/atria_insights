@@ -8,7 +8,7 @@ tb_logger: null
 epoch_length: null
 outputs_to_running_avg: null
 logging:
-  _target_: atria._core.training.configs.logging_config.LoggingConfig
+  _target_: atria.core.training.configs.logging_config.LoggingConfig
   logging_steps: 1
   refresh_rate: 1
   log_gpu_stats: false
@@ -18,3 +18,4 @@ metrics: null
 metric_logging_prefix: null
 test_run: false
 force_recompute: false
+cache_full_explanations: false

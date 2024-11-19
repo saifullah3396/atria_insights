@@ -5,3 +5,6 @@ internal_batch_size: 1
 n_samples: 100
 alpha: 0.01
 weight_attributions: true
+similarity_func:
+  path: torchxai.explainers._perturbation.lime.get_exp_kernel_similarity_function
+  _target_: hydra_zen.funcs.get_obj

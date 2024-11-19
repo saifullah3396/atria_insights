@@ -5,10 +5,10 @@ from typing import Dict, List, Optional, Union
 import ignite.distributed as idist
 import torch
 import webdataset as wds
-from atria._core.training.configs.logging_config import LoggingConfig
-from atria._core.training.engines.atria_engine import AtriaEngine
-from atria._core.utilities.common import _validate_partial_class
-from atria._core.utilities.logging import get_logger
+from atria.core.training.configs.logging_config import LoggingConfig
+from atria.core.training.engines.atria_engine import AtriaEngine
+from atria.core.utilities.common import _validate_partial_class
+from atria.core.utilities.logging import get_logger
 from ignite.engine import Engine
 from ignite.handlers import TensorboardLogger
 from ignite.metrics import Metric
@@ -40,6 +40,7 @@ class ExplanationEngine(AtriaEngine):
         metric_logging_prefix: Optional[str] = None,
         test_run: bool = False,
         force_recompute: bool = False,
+        cache_full_explanations: bool = False,
     ):
         _validate_partial_class(engine_step, ExplanationStep, "engine_step")
         self._explainer = explainer
@@ -63,7 +64,7 @@ class ExplanationEngine(AtriaEngine):
         )
 
     def _initialize_components(self):
-        from atria._core.training.utilities.progress_bar import (
+        from atria.core.training.utilities.progress_bar import (
             AtriaProgressBar,
             TqdmToLogger,
         )
@@ -80,6 +81,7 @@ class ExplanationEngine(AtriaEngine):
         self._explanation_results_saver = ExplanationResultsSaver(
             output_file_path=Path(self._output_dir)
             / f"{self._explainer.func.__name__}.h5",
+            cache_full_explanations=self._cache_full_explanations,
         )
 
         # create progress bar for this engine
@@ -91,6 +93,9 @@ class ExplanationEngine(AtriaEngine):
 
         # attach the progress bar to task module
         self._task_module.attach_progress_bar(self._progress_bar)
+        self._task_module.attach_explanation_results_saver(
+            self._explanation_results_saver
+        )
 
         # initialize the metrics to the required device
         if self._metrics is not None:

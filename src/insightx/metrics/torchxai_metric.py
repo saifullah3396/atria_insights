@@ -5,7 +5,7 @@ from typing import Callable, Optional, cast
 
 import ignite.distributed as idist
 import torch
-from atria._core.utilities.logging import get_logger
+from atria.core.utilities.logging import get_logger
 from ignite.handlers import ProgressBar
 from ignite.metrics import Metric
 from ignite.metrics.metric import Metric, reinit__is_reduced, sync_all_reduce

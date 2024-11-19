@@ -3,9 +3,8 @@ from typing import Dict
 
 import torch
 from dacite import Any
-from pyparsing import abstractmethod
-
 from insightx.utilities.containers import ExplainerArguments
+from pyparsing import abstractmethod
 
 
 def forward_wrapper(forward_func):
@@ -20,6 +19,7 @@ class ModelExplainabilityWrapper(torch.nn.Module):
     def __init__(self, model: torch.nn.Module, **kwargs):
         super().__init__()
         self._model = model
+        self._is_explainable = False
 
     @property
     def model(self) -> torch.nn.Module:
@@ -29,7 +29,9 @@ class ModelExplainabilityWrapper(torch.nn.Module):
         with torch.no_grad():
             inputs = self._prepare_explainable_inputs(*args, **kwargs)
             baselines = self._prepare_baselines_from_inputs(*args, **kwargs)
-            feature_masks = self._prepare_feature_masks_from_inputs(*args, **kwargs)
+            feature_masks, frozen_features = self._prepare_feature_masks_from_inputs(
+                *args, **kwargs
+            )
             feature_masks = self._expand_feature_masks_to_explainable_inputs(
                 inputs, feature_masks
             )
@@ -50,6 +52,7 @@ class ModelExplainabilityWrapper(torch.nn.Module):
                 ),
                 constant_shifts=constant_shifts,
                 input_layer_names=input_layer_names,
+                frozen_features=frozen_features,
             )
 
     @abstractmethod
@@ -86,9 +89,13 @@ class ModelExplainabilityWrapper(torch.nn.Module):
 
     def toggle_explainability(self, convert_to_explainable: bool = True) -> Any:
         if convert_to_explainable:
-            self.patch_forward_for_explainability()
+            if not self._is_explainable:
+                self.patch_forward_for_explainability()
+                self._is_explainable = True
         else:
-            self.restore_forward()
+            if self._is_explainable:
+                self.restore_forward()
+                self._is_explainable = False
 
     def patch_forward_for_explainability(self, **kwargs) -> Any:
         pass
@@ -97,4 +104,5 @@ class ModelExplainabilityWrapper(torch.nn.Module):
         pass
 
     def forward(self, *args, **kwargs):
+        print("HERE", args, kwargs)
         return self.model(*args, **kwargs)

@@ -14,6 +14,7 @@ metric_func:
   max_features_processed_per_batch: null
   eps: 1.0e-05
   is_multi_target: false
+  frozen_features: null
   show_progress: false
   return_intermediate_results: false
   return_dict: false

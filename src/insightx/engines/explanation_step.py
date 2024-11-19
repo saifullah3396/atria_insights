@@ -2,8 +2,8 @@ from functools import partial
 from typing import Any, Dict, Sequence, Tuple, Union
 
 import torch
-from atria._core.training.engines.engine_steps.base import BaseEngineStep
-from atria._core.utilities.logging import get_logger
+from atria.core.training.engines.engine_steps.base import BaseEngineStep
+from atria.core.utilities.logging import get_logger
 from ignite.engine import Engine
 from torchxai.explainers.explainer import Explainer
 

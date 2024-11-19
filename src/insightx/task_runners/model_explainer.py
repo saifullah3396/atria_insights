@@ -1,17 +1,15 @@
 from functools import partial
 from typing import Optional
 
-import atria  # noqa
 import hydra
 import ignite.distributed as idist
-from atria._core.data.data_modules.atria_data_module import AtriaDataModule
-from atria._core.training.engines.evaluation import TestEngine
-from atria._core.training.utilities.initialization import (
+from atria.core.data.data_modules.atria_data_module import AtriaDataModule
+from atria.core.training.engines.evaluation import TestEngine
+from atria.core.training.utilities.initialization import (
     _initialize_torch,
-    _setup_tensorboard,
 )
-from atria._core.utilities.logging import get_logger
-from atria._core.utilities.pydantic_parser import atria_pydantic_parser
+from atria.core.utilities.logging import get_logger
+from atria.core.utilities.pydantic_parser import atria_pydantic_parser
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig
 
@@ -63,7 +61,6 @@ class ModelExplainer:
 
         # initialize logging directory and tensorboard logger
         output_dir = hydra_config.runtime.output_dir
-        tb_logger = _setup_tensorboard(output_dir=output_dir)
 
         # build data module
         self._data_module.setup(stage=None)
@@ -71,7 +68,6 @@ class ModelExplainer:
         # initialize the task module from partial
         task_module = self._task_module(
             dataset_metadata=self._data_module.dataset_metadata,
-            tb_logger=tb_logger,
         )
         task_module.build_model()
 
@@ -82,7 +78,6 @@ class ModelExplainer:
                 task_module=task_module,
                 dataloader=self._data_module.test_dataloader(),
                 device=device,
-                tb_logger=tb_logger,
             )
 
             # run the test engine

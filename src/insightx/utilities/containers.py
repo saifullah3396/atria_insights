@@ -13,6 +13,7 @@ class ExplainerArguments:
     constant_shifts: Mapping[str, torch.Tensor] = None
     input_layer_names: Mapping[str, str] = None
     train_baselines: Mapping[str, torch.Tensor] = None
+    frozen_features: torch.Tensor = None
 
 
 @dataclasses.dataclass
@@ -21,3 +22,4 @@ class ExplanationModelOutput:
     reduced_explanations: Union[torch.Tensor, List[torch.Tensor]] = None
     explainer_args: ExplainerArguments = None
     target: Union[torch.Tensor, List[torch.Tensor]] = None
+    explanations_loaded_from_cache: bool = False

@@ -4,11 +4,11 @@ from functools import partial
 from typing import Any, Dict, List, Optional, Union
 
 import torch
-from atria._core.models.task_modules.atria_task_module import AtriaTaskModule
-from atria._core.models.utilities.common import _validate_keys_in_batch
-from atria._core.utilities.common import _get_possible_args, _get_required_args
-from atria._core.utilities.logging import get_logger
-from atria._core.utilities.typing import BatchDict
+from atria.core.models.task_modules.atria_task_module import AtriaTaskModule
+from atria.core.models.utilities.common import _validate_keys_in_batch
+from atria.core.utilities.common import _get_possible_args, _get_required_args
+from atria.core.utilities.logging import get_logger
+from atria.core.utilities.typing import BatchDict
 from ignite.engine import Engine
 from ignite.utils import apply_to_tensor
 from insightx.model_explainability_wrappers.base import ModelExplainabilityWrapper
@@ -31,9 +31,13 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         super().__init__(*args, **kwargs)
         self._model_explainability_wrapper = model_explainability_wrapper
         self._is_multi_target = is_multi_target
+        self._explanation_results_saver = None
 
     def toggle_explainability(self, state: bool):
         self.torch_model.toggle_explainability(state)
+
+    def attach_explanation_results_saver(self, explanation_results_saver):
+        self._explanation_results_saver = explanation_results_saver
 
     def _build_model(
         self,
@@ -117,6 +121,15 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
             explainer_kwargs["feature_mask"] = tuple(
                 explainer_args.feature_masks.values()
             )
+        if "frozen_features" in possible_args:
+            assert (
+                len(explainer_args.frozen_features)
+                == list(explainer_args.inputs.values())[0].shape[0]
+            ), (
+                f"Length of frozen features must be equal to the batch size. "
+                f"Got {len(explainer_args.frozen_features)} and {list(explainer_args.inputs.values())[0].shape[0]}"
+            )
+            explainer_kwargs["frozen_features"] = explainer_args.frozen_features
         if "train_baselines" in possible_args:
             assert (
                 explainer_args.train_baselines.keys() == explainer_args.inputs.keys()
@@ -143,7 +156,7 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
             x.requires_grad_() for x in explainer_kwargs["inputs"]
         )
 
-        if self._progress_bar is not None:
+        if self._progress_bar is not None and self._progress_bar.pbar is not None:
             self._progress_bar.pbar.set_postfix_str(
                 f"generating explanations using explainer=[{explainer.__class__.__name__}]"
             )
@@ -201,7 +214,7 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         explanation_engine: Engine,
         **kwargs,
     ) -> ExplanationModelOutput:
-        if explanation_engine.state.skip_batch:
+        if explanation_engine is not None and explanation_engine.state.skip_batch:
             return ExplanationModelOutput()
 
         # validate model is built
@@ -218,6 +231,23 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
 
         # prepare target
         target = self._prepare_target(batch=batch, explainer_args=explainer_args)
+
+        # load explanations from cache if available
+        # print("self._explanation_results_saver", self._explanation_results_saver)
+        if self._explanation_results_saver is not None:
+            loaded_explanations = self._explanation_results_saver.load_explanations(
+                batch, explainer_args
+            )
+            if len(loaded_explanations) > 0 and len(loaded_explanations) == len(
+                batch["__key__"]
+            ):
+                return ExplanationModelOutput(
+                    explanations=loaded_explanations,
+                    reduced_explanations=None,
+                    explainer_args=explainer_args,
+                    target=target,
+                    explanations_loaded_from_cache=True,
+                )
 
         # perform explainer forward
         explainer_output = self._explainer_forward(

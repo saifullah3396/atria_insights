@@ -5,9 +5,9 @@ from typing import Optional, Union
 import ignite.distributed as idist
 import torch
 import webdataset as wds
-from atria._core.training.configs.logging_config import LoggingConfig
-from atria._core.training.engines.atria_engine import AtriaEngine
-from atria._core.utilities.logging import get_logger
+from atria.core.training.configs.logging_config import LoggingConfig
+from atria.core.training.engines.atria_engine import AtriaEngine
+from atria.core.utilities.logging import get_logger
 from ignite.engine import Engine
 from ignite.utils import convert_tensor
 from torch.utils.data import DataLoader
@@ -62,13 +62,15 @@ class TrainBaselinesGenerationEngine(AtriaEngine):
             self._train_baselines.append(engine.state.output)
 
         def finalize_train_baselines(engine: Engine):
-            train_baselines_file_path = Path(self._output_dir) / f"train_baselines.h5"
-            logger.info(f"Saving train baselines at [{train_baselines_file_path}]")
             # convert list of dict to dict of list
             self._train_baselines = {
                 k: torch.cat([d[k] for d in self._train_baselines], dim=0)
                 for k in self._train_baselines[0]
             }
+            train_baselines_file_path = Path(self._output_dir) / f"train_baselines.h5"
+            logger.info(f"Saving train baselines at [{train_baselines_file_path}]")
+            if not train_baselines_file_path.parent.exists():
+                train_baselines_file_path.parent.mkdir(parents=True, exist_ok=True)
             with HFDataset(train_baselines_file_path, "w") as hf_dataset:
                 for key, data in self._train_baselines.items():
                     hf_dataset.save(key, data)

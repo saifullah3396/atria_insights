@@ -8,6 +8,7 @@ metric_func:
   target: null
   n_perturb_samples: 10
   max_examples_per_batch: null
+  frozen_features: null
   normalize: false
   is_multi_target: false
   return_dict: false

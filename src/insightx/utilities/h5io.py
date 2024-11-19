@@ -35,7 +35,11 @@ class HFDataset:
             raise ValueError(f"Key '{key}' already exists in the file.")
 
         # Create a dataset with max shape to allow future resizing
-        self.hf.create_dataset(key, data=data.detach().cpu().numpy())
+        self.hf.create_dataset(
+            key,
+            data=data.detach().cpu().numpy(),
+            compression="gzip",
+        )
 
     def load(self):
         """
@@ -75,6 +79,12 @@ class HFSampleSaver:
         if self.hf[sample_key].attrs.get(key) is None:
             self.hf[sample_key].attrs[key] = data
 
+    def load_attribute(self, key: str, sample_key: str):
+        if sample_key not in self.hf:
+            return None
+
+        return self.hf[sample_key].attrs.get(key)
+
     def sample_exists(self, sample_key: str):
         return sample_key in self.hf
 
@@ -89,10 +99,13 @@ class HFSampleSaver:
             # Create a dataset for the key
             if isinstance(data, np.ndarray):
                 self.hf[sample_key].create_dataset(
-                    key, data=[data], maxshape=(None, *data.shape)
+                    key,
+                    data=[data],
+                    maxshape=(None, *data.shape),
+                    compression="gzip",
                 )
             else:
-                self.hf[sample_key].create_dataset(key, data=data)
+                self.hf[sample_key].create_dataset(key, data=data, compression="gzip")
         else:
             # Create a dataset for the key
             if isinstance(data, np.ndarray):

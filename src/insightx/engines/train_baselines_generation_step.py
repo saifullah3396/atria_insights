@@ -1,11 +1,10 @@
-from typing import Sequence, Union
+from typing import Sequence, Tuple, Union
 
 import torch
-from atria._core.training.engines.engine_steps.evaluation import EvaluationStep
-from atria._core.utilities.logging import get_logger
+from atria.core.training.engines.engine_steps.evaluation import EvaluationStep
+from atria.core.utilities.logging import get_logger
 from dacite import Any
 from ignite.engine import Engine
-from pyparsing import Tuple
 
 logger = get_logger(__name__)
 

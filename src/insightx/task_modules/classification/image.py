@@ -2,11 +2,11 @@ from functools import partial
 from typing import Any, Dict, List, Optional, Union
 
 import torch
-from atria._core.constants import DataKeys
-from atria._core.data.datasets.dataset_metadata import DatasetMetadata
-from atria._core.models.torch_model_builders.base import TorchModelBuilderBase
-from atria._core.utilities.logging import get_logger
-from atria._core.utilities.typing import BatchDict
+from atria.core.constants import DataKeys
+from atria.core.data.datasets.dataset_metadata import DatasetMetadata
+from atria.core.models.torch_model_builders.base import TorchModelBuilderBase
+from atria.core.utilities.logging import get_logger
+from atria.core.utilities.typing import BatchDict
 from atria.models.task_modules.classification.image import ImageClassificationModule
 from ignite.contrib.handlers import TensorboardLogger
 

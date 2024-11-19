@@ -3,13 +3,21 @@
 import argparse
 from pathlib import Path
 
-from atria._core.utilities.logging import get_logger
+from atria.core.utilities.logging import get_logger
 from hydra.core.config_store import ConfigNode, ConfigStore
 from omegaconf import OmegaConf
 
 from insightx.registry.module_registry import ModuleRegistry
 
 logger = get_logger(__name__)
+
+import insightx  # noqa
+from insightx.engines.config import *  # noqa
+from insightx.explainers.config import *  # noqa
+from insightx.metrics.config import *  # noqa
+from insightx.model_explainability_wrappers.config import *  # noqa
+from insightx.task_modules.config import *  # noqa
+from insightx.task_runners.config import *  # noqa
 
 
 def dump_configurations(root_dir: Path, d: dict):
@@ -34,8 +42,6 @@ def dump_configurations(root_dir: Path, d: dict):
 
 
 def build_configurations():
-    import insightx  # noqa
-
     args_parser = argparse.ArgumentParser()
     args_parser.add_argument(
         "--configurations_dir",

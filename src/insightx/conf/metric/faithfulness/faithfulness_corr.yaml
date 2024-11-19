@@ -13,6 +13,7 @@ metric_func:
     noise_scale: 0.02
   n_perturb_samples: 10
   max_examples_per_batch: null
+  frozen_features: null
   perturbation_probability: 0.1
   show_progress: false
   set_same_perturbation_mask_for_batch: false
