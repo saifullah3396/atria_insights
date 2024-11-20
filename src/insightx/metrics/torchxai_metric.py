@@ -10,6 +10,7 @@ from ignite.handlers import ProgressBar
 from ignite.metrics import Metric
 from ignite.metrics.metric import Metric, reinit__is_reduced, sync_all_reduce
 from ignite.utils import apply_to_tensor
+from insightx.engines.metrics_cacher import MetricsCacher
 from insightx.utilities.containers import ExplanationModelOutput
 from torchxai.explainers.explainer import Explainer
 
@@ -33,6 +34,7 @@ class TorchXAIMetric(Metric):
         device="cpu",
         progress_bar: Optional[ProgressBar] = None,
         attached_name: Optional[str] = None,
+        cacher: Optional[MetricsCacher] = None,
     ):
         self._attached_name = attached_name
         self._metric_func = metric_func
@@ -41,6 +43,7 @@ class TorchXAIMetric(Metric):
         self._explainer = explainer
         self._metric_outputs = None
         self._progress_bar = progress_bar
+        self._cacher = cacher
         super().__init__(output_transform=output_transform, device=device)
 
     @property
@@ -50,7 +53,6 @@ class TorchXAIMetric(Metric):
     @reinit__is_reduced
     def reset(self):
         self._metric_outputs = []
-        self._time_taken = 0.0
         self._num_examples = 0
         self._result: Optional[float] = None
         super().reset()
@@ -71,15 +73,6 @@ class TorchXAIMetric(Metric):
         metric_kwargs = dict(
             forward_func=self._forward_func,
             inputs=tuple(x.detach() for x in output.explainer_args.inputs.values()),
-            attributions=tuple(
-                apply_to_tensor(x, torch.detach) for x in output.explanations.values()
-            ),
-            baselines=tuple(
-                x.detach() for x in output.explainer_args.baselines.values()
-            ),
-            feature_mask=tuple(
-                x.detach() for x in output.explainer_args.feature_masks.values()
-            ),
             additional_forward_args=tuple(
                 x.detach()
                 for x in output.explainer_args.additional_forward_kwargs.values()
@@ -88,6 +81,15 @@ class TorchXAIMetric(Metric):
                 output.target.detach()
                 if isinstance(output.target, torch.Tensor)
                 else output.target
+            ),
+            attributions=tuple(
+                apply_to_tensor(x, torch.detach) for x in output.explanations.values()
+            ),
+            baselines=tuple(
+                x.detach() for x in output.explainer_args.baselines.values()
+            ),
+            feature_mask=tuple(
+                x.detach() for x in output.explainer_args.feature_masks.values()
             ),
             is_multi_target=is_target_list,
             explainer=explainer,
@@ -103,8 +105,14 @@ class TorchXAIMetric(Metric):
                 if output.explainer_args.input_layer_names is not None
                 else None
             ),  # these are only for input invariance
-            return_intermediate_results=False,
+            frozen_features=(
+                output.explainer_args.frozen_features
+                if output.explainer_args.frozen_features is not None
+                else None
+            ),
+            return_intermediate_results=True,
             return_dict=True,
+            show_progress=True,
         )
 
         possible_args = set(inspect.signature(self._metric_func).parameters)
@@ -184,59 +192,87 @@ class TorchXAIMetric(Metric):
     def update(self, output: ExplanationModelOutput):
         if output.explanations is None:
             return
-        if self._progress_bar is not None:
-            if self._attached_name is not None:
-                self._progress_bar.pbar.set_postfix_str(
-                    f"computing metric=[{self._attached_name}.{self._metric_name}]"
-                )
-            else:
-                self._progress_bar.pbar.set_postfix_str(
-                    f"computing metric=[{self._metric_name}]"
-                )
 
-        start_time = time.time()
-        metric_kwargs = self._prepare_metric_kwargs(output)
-        if isinstance(metric_kwargs, list):
-            metric_output = []
-            for metric_kwargs_per_sample in metric_kwargs:
-                metric_output_per_sample = self._metric_func(**metric_kwargs_per_sample)
-                metric_output_per_sample = apply_to_tensor(
-                    metric_output_per_sample, lambda tensor: tensor.detach().cpu()
-                )
-                metric_output.append(
-                    {k: torch.cat(v) for k, v in metric_output_per_sample.items()}
-                )
-            metric_output = {
-                key: [d[key] for d in metric_output] for key in metric_output[0].keys()
-            }
+        loaded_metrics = None
+        if self._cacher is not None:
+            loaded_metrics = self._cacher.load_metrics(
+                self._metric_name,
+                output.sample_keys,
+            )
+
+        if loaded_metrics is not None:
+            logger.info(f"Loaded metrics from cache: {loaded_metrics}")
+            self._num_examples += len(loaded_metrics)
+            self._metric_outputs.append(loaded_metrics)
         else:
-            metric_output = self._metric_func(**metric_kwargs)
-            metric_output = apply_to_tensor(
-                metric_output, lambda tensor: tensor.detach().cpu()
-            )
-        self._metric_outputs.append(metric_output)
-        end_time = time.time()
-        self._time_taken += end_time - start_time
-        self._num_examples += len(metric_output)
+            if self._progress_bar is not None:
+                if self._attached_name is not None:
+                    self._progress_bar.pbar.set_postfix_str(
+                        f"computing metric=[{self._attached_name}.{self._metric_name}]"
+                    )
+                else:
+                    self._progress_bar.pbar.set_postfix_str(
+                        f"computing metric=[{self._metric_name}]"
+                    )
 
-        if self._progress_bar is not None:
-            self._progress_bar.pbar.set_postfix_str(
-                f"computing metric=[{self._metric_name}], metric outputs=[{metric_output.keys()}]"
-            )
+            start_time = time.time()
+            metric_kwargs = self._prepare_metric_kwargs(output)
+            if isinstance(metric_kwargs, list):
+                metric_output = []
+                for metric_kwargs_per_sample in metric_kwargs:
+                    metric_output_per_sample = self._metric_func(
+                        **metric_kwargs_per_sample
+                    )
+                    metric_output_per_sample = apply_to_tensor(
+                        metric_output_per_sample, lambda tensor: tensor.detach().cpu()
+                    )
+                    metric_output.append(
+                        {k: torch.cat(v) for k, v in metric_output_per_sample.items()}
+                    )
+                metric_output = {
+                    key: [d[key] for d in metric_output]
+                    for key in metric_output[0].keys()
+                }
+            else:
+                metric_output = self._metric_func(**metric_kwargs)
+                metric_output = apply_to_tensor(
+                    metric_output, lambda tensor: tensor.detach().cpu()
+                )
+            end_time = time.time()
+            time_taken = torch.tensor(end_time - start_time, requires_grad=False)
+            metric_output = {
+                **metric_output,
+                f"time_taken": torch.stack(
+                    [
+                        time_taken / len(output.sample_keys)
+                        for _ in range(len(output.sample_keys))
+                    ]
+                ),
+            }
 
-    @sync_all_reduce("_num_examples", "_time_taken:SUM")
+            if self._cacher is not None:
+                self._cacher.save_metrics(
+                    {f"{self._metric_name}_{k}": v for k, v in metric_output.items()},
+                    output.sample_keys,
+                )
+
+            self._num_examples += len(metric_output)
+            self._metric_outputs.append(metric_output)
+
+            if self._progress_bar is not None:
+                self._progress_bar.pbar.set_postfix_str(
+                    f"computing metric=[{self._metric_name}], metric outputs=[{metric_output.keys()}]"
+                )
+
+    @sync_all_reduce("_num_examples")
     def compute(self) -> float:
         try:
             if self._num_examples == 0:
                 return {}
 
-            time_taken_per_sample = [
-                self._time_taken / self._num_examples
-            ] * self._num_examples
-
             if isinstance(next(iter(self._metric_outputs[0].values())), torch.Tensor):
                 aggregated_metric = {
-                    key: torch.cat([d[key] for d in self._metric_outputs], dim=0)
+                    key: [d[key] for d in self._metric_outputs]
                     for key in self._metric_outputs[0]
                 }
             elif isinstance(next(iter(self._metric_outputs[0].values())), list):
@@ -257,10 +293,7 @@ class TorchXAIMetric(Metric):
                         torch.Tensor, idist.all_gather(aggregated_metric[key])
                     )
 
-            return {
-                **aggregated_metric,
-                f"time_to_compute_{self._metric_name}": time_taken_per_sample,
-            }
+            return aggregated_metric
         except Exception as e:
             logger.exception(
                 f"An error occurred while computing the metric {self._metric_name}. Error: {e}"

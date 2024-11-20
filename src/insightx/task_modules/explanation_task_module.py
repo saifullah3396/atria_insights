@@ -11,11 +11,13 @@ from atria.core.utilities.logging import get_logger
 from atria.core.utilities.typing import BatchDict
 from ignite.engine import Engine
 from ignite.utils import apply_to_tensor
+from insightx.engines.explanation_results_cacher import ExplanationResultsCacher
 from insightx.model_explainability_wrappers.base import ModelExplainabilityWrapper
 from insightx.task_modules.model_output_wrappers import SoftmaxWrapper
 from insightx.task_modules.utilities import _get_model_forward_fn
 from insightx.utilities.containers import ExplainerArguments, ExplanationModelOutput
 from torchxai.explainers.explainer import Explainer
+from ignite.utils import convert_tensor
 
 logger = get_logger(__name__)
 
@@ -31,13 +33,13 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         super().__init__(*args, **kwargs)
         self._model_explainability_wrapper = model_explainability_wrapper
         self._is_multi_target = is_multi_target
-        self._explanation_results_saver = None
+        self._explanation_results_cacher: ExplanationResultsCacher = None
 
     def toggle_explainability(self, state: bool):
         self.torch_model.toggle_explainability(state)
 
-    def attach_explanation_results_saver(self, explanation_results_saver):
-        self._explanation_results_saver = explanation_results_saver
+    def attach_explanation_results_cacher(self, explanation_results_cacher):
+        self._explanation_results_cacher = explanation_results_cacher
 
     def _build_model(
         self,
@@ -90,35 +92,32 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         )
         return model_outputs
 
-    def _explainer_forward(
+    def _prepare_explainer_input_kwargs(
         self,
-        batch: BatchDict,
         explainer: partial[Explainer],
         explainer_args: ExplainerArguments,
         target: Union[torch.Tensor, List[torch.Tensor]],
     ):
-        # initialize explainer
-        explainer = explainer(self.torch_model, is_multi_target=self._is_multi_target)
-
         possible_args = _get_possible_args(explainer.explain)
-        input_keys = explainer_args.inputs.keys()
-        explainer_kwargs = {
-            "inputs": tuple(explainer_args.inputs.values()),
-            "additional_forward_args": tuple(
+        explainer_input_kwargs = dict(
+            inputs=tuple(explainer_args.inputs.values()),
+            additional_forward_args=tuple(
                 explainer_args.additional_forward_kwargs.values()
             ),
-            "target": target,
-        }
+            target=target,
+        )
         if "baselines" in possible_args:
             assert (
                 explainer_args.baselines.keys() == explainer_args.inputs.keys()
             ), f"Baselines must have the same keys as inputs. Got {explainer_args.baselines.keys()} "
-            explainer_kwargs["baselines"] = tuple(explainer_args.baselines.values())
+            explainer_input_kwargs["baselines"] = tuple(
+                explainer_args.baselines.values()
+            )
         if "feature_mask" in possible_args:
             assert (
                 explainer_args.feature_masks.keys() == explainer_args.inputs.keys()
             ), f"Feature masks must have the same keys as inputs. Got {explainer_args.feature_masks.keys()} "
-            explainer_kwargs["feature_mask"] = tuple(
+            explainer_input_kwargs["feature_mask"] = tuple(
                 explainer_args.feature_masks.values()
             )
         if "frozen_features" in possible_args:
@@ -129,19 +128,11 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
                 f"Length of frozen features must be equal to the batch size. "
                 f"Got {len(explainer_args.frozen_features)} and {list(explainer_args.inputs.values())[0].shape[0]}"
             )
-            explainer_kwargs["frozen_features"] = explainer_args.frozen_features
+            explainer_input_kwargs["frozen_features"] = explainer_args.frozen_features
         if "train_baselines" in possible_args:
             assert (
                 explainer_args.train_baselines.keys() == explainer_args.inputs.keys()
             ), f"Train baselines must have the same keys as inputs. Got {explainer_args.train_baselines.keys()} "
-
-            # convert dict to ordered dict
-            explainer_args.train_baselines = OrderedDict(
-                {
-                    key: explainer_args.train_baselines[key]
-                    for key in explainer_args.inputs.keys()
-                }
-            )
 
             for train_baselines, inputs in zip(
                 explainer_args.train_baselines.values(), explainer_args.inputs.values()
@@ -149,12 +140,21 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
                 assert (
                     train_baselines.shape[1:] == inputs.shape[1:]
                 ), f"Train baselines must have the same shape as inputs. Got {train_baselines.shape} and {inputs.shape}"
-            explainer_kwargs["train_baselines"] = tuple(
+            explainer_input_kwargs["train_baselines"] = tuple(
                 explainer_args.train_baselines.values()
             )
-        explainer_kwargs["inputs"] = tuple(
-            x.requires_grad_() for x in explainer_kwargs["inputs"]
-        )
+        return explainer_input_kwargs
+
+    def _explainer_forward(
+        self,
+        batch: BatchDict,
+        explainer: partial[Explainer],
+        explainer_args: ExplainerArguments,
+        target: Union[torch.Tensor, List[torch.Tensor]],
+    ):
+        # initialize explainer
+        explainer = explainer(self.torch_model, is_multi_target=self._is_multi_target)
+        input_keys = explainer_args.inputs.keys()
 
         if self._progress_bar is not None and self._progress_bar.pbar is not None:
             self._progress_bar.pbar.set_postfix_str(
@@ -164,7 +164,12 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         explanations = {
             input_key: explanation
             for input_key, explanation in zip(
-                input_keys, explainer.explain(**explainer_kwargs)
+                input_keys,
+                explainer.explain(
+                    **self._prepare_explainer_input_kwargs(
+                        explainer, explainer_args, target
+                    )
+                ),
             )
         }
 
@@ -189,6 +194,7 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
             ),
             explainer_args=explainer_args,
             target=target,
+            sample_keys=batch["__key__"],
         )
 
     def train_baselines_generation_step(
@@ -227,26 +233,61 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
 
         # prepare inputs for explanation
         explainer_args = self._prepare_explainer_arguments(batch=batch)
+
+        # attach train baselines
         explainer_args.train_baselines = train_baselines
+
+        # convert dict to ordered dict
+        explainer_args.train_baselines = OrderedDict(
+            {
+                key: explainer_args.train_baselines[key]
+                for key in explainer_args.inputs.keys()
+            }
+        )
 
         # prepare target
         target = self._prepare_target(batch=batch, explainer_args=explainer_args)
 
         # load explanations from cache if available
-        # print("self._explanation_results_saver", self._explanation_results_saver)
-        if self._explanation_results_saver is not None:
-            loaded_explanations = self._explanation_results_saver.load_explanations(
-                batch, explainer_args
+        if self._explanation_results_cacher is not None:
+            explanations, reduced_explanations = (
+                self._explanation_results_cacher.load_explanations(batch["__key__"])
             )
-            if len(loaded_explanations) > 0 and len(loaded_explanations) == len(
-                batch["__key__"]
-            ):
+
+            if explanations is not None:
+                # convert dict to ordered dict
+                explanations = OrderedDict(
+                    {key: explanations[key] for key in explainer_args.inputs.keys()}
+                )
+            if reduced_explanations is not None:
+                # convert dict to ordered dict
+                reduced_explanations = OrderedDict(
+                    {
+                        key: reduced_explanations[key]
+                        for key in explainer_args.inputs.keys()
+                    }
+                )
+
+            if explanations is not None:
                 return ExplanationModelOutput(
-                    explanations=loaded_explanations,
-                    reduced_explanations=None,
+                    explanations=convert_tensor(explanations, device=target.device),
+                    reduced_explanations=reduced_explanations,
                     explainer_args=explainer_args,
                     target=target,
-                    explanations_loaded_from_cache=True,
+                    sample_keys=batch["__key__"],
+                )
+            elif reduced_explanations is not None:
+                explanations = self._invert_reduced_explanations(
+                    batch=batch,
+                    explainer_args=explainer_args,
+                    reduced_explanations=reduced_explanations,
+                )
+                return ExplanationModelOutput(
+                    explanations=convert_tensor(explanations, device=target.device),
+                    reduced_explanations=reduced_explanations,
+                    explainer_args=explainer_args,
+                    target=target,
+                    sample_keys=batch["__key__"],
                 )
 
         # perform explainer forward
@@ -256,10 +297,14 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
             explainer_args=explainer_args,
             target=target,
         )
-
         assert isinstance(
             explainer_output, ExplanationModelOutput
         ), f"Model output must be of type ModelOutput. Got {type(explainer_output)}"
+
+        # save explanations to cache
+        if self._explanation_results_cacher is not None:
+            self._explanation_results_cacher.save_results(batch, explainer_output)
+
         return explainer_output
 
     @abstractmethod
@@ -284,3 +329,11 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         explanations: Dict[str, torch.Tensor],
     ) -> Dict[str, torch.Tensor]:
         return explanations
+
+    def _invert_reduced_explanations(
+        self,
+        batch: BatchDict,
+        explainer_args: ExplainerArguments,
+        reduced_explanations: Dict[str, torch.Tensor],
+    ) -> Dict[str, torch.Tensor]:
+        return reduced_explanations

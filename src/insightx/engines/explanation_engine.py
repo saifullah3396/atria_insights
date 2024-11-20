@@ -13,9 +13,10 @@ from ignite.engine import Engine
 from ignite.handlers import TensorboardLogger
 from ignite.metrics import Metric
 from torch.utils.data import DataLoader
+from insightx.engines.explanation_results_cacher import ExplanationResultsCacher
+from insightx.engines.metrics_cacher import MetricsCacher
 from torchxai.explainers.explainer import Explainer
 
-from insightx.engines.explanation_results_saver import ExplanationResultsSaver
 from insightx.engines.explanation_step import ExplanationStep
 from insightx.task_modules.explanation_task_module import ExplanationTaskModule
 
@@ -45,8 +46,10 @@ class ExplanationEngine(AtriaEngine):
         _validate_partial_class(engine_step, ExplanationStep, "engine_step")
         self._explainer = explainer
         self._train_baselines = train_baselines
-        self._explanation_results_saver = None
+        self._explanation_results_cacher = None
+        self._metrics_cacher = None
         self._force_recompute = force_recompute
+        self._cache_full_explanations = cache_full_explanations
         super().__init__(
             output_dir=output_dir,
             task_module=task_module,
@@ -78,10 +81,16 @@ class ExplanationEngine(AtriaEngine):
         )
 
         # initialize the output saver
-        self._explanation_results_saver = ExplanationResultsSaver(
+        self._explanation_results_cacher = ExplanationResultsCacher(
             output_file_path=Path(self._output_dir)
             / f"{self._explainer.func.__name__}.h5",
             cache_full_explanations=self._cache_full_explanations,
+        )
+
+        # initialize metrics cacher
+        self._metrics_cacher = MetricsCacher(
+            output_file_path=Path(self._output_dir)
+            / f"{self._explainer.func.__name__}.metrics.h5",
         )
 
         # create progress bar for this engine
@@ -93,8 +102,8 @@ class ExplanationEngine(AtriaEngine):
 
         # attach the progress bar to task module
         self._task_module.attach_progress_bar(self._progress_bar)
-        self._task_module.attach_explanation_results_saver(
-            self._explanation_results_saver
+        self._task_module.attach_explanation_results_cacher(
+            self._explanation_results_cacher
         )
 
         # initialize the metrics to the required device
@@ -105,6 +114,7 @@ class ExplanationEngine(AtriaEngine):
                     forward_func=self._task_module.torch_model,
                     explainer=self._explainer,
                     progress_bar=self._progress_bar,
+                    cacher=self._metrics_cacher,
                 )
                 for key, metric in self._metrics.items()
             }
@@ -136,18 +146,6 @@ class ExplanationEngine(AtriaEngine):
     def _configure_tb_logger(self, engine: Engine):
         pass  # no need to configure tb logger for explanation engine as we save outputs using ExplanationResultsSaver
 
-    def _configure_explanation_results_saver(self, engine: Engine) -> None:
-        from ignite.engine import Events
-
-        logger.info(
-            f"Attaching explanation output saver to engine [{self.__class__.__name__}]"
-        )
-
-        if idist.get_rank() == 0:
-            engine.add_event_handler(
-                Events.ITERATION_COMPLETED, self._explanation_results_saver
-            )
-
     def _configure_batch_done(self, engine: Engine):
         from ignite.engine import Events
 
@@ -159,12 +157,12 @@ class ExplanationEngine(AtriaEngine):
                 return
 
             batch_exists = [
-                self._explanation_results_saver.sample_exists(key)
+                self._explanation_results_cacher.sample_exists(key)
                 for key in engine.state.batch["__key__"]
             ]
             metrics_exist = (
                 [
-                    self._explanation_results_saver.key_exists(sample_key, metric_key)
+                    self._explanation_results_cacher.key_exists(sample_key, metric_key)
                     for sample_key, metric_key in zip(
                         engine.state.batch["__key__"], self._metrics.keys()
                     )
@@ -186,7 +184,6 @@ class ExplanationEngine(AtriaEngine):
         self._configure_metrics(engine=engine)
         self._configure_progress_bar(engine=engine)
         self._configure_tb_logger(engine=engine)
-        self._configure_explanation_results_saver(engine=engine)
 
     def run(self):
         self._task_module.toggle_explainability(True)

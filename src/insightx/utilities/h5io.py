@@ -91,6 +91,11 @@ class HFSampleSaver:
     def key_exists(self, sample_key: str, key: str):
         return sample_key in self.hf and key in self.hf[sample_key]
 
+    def get_keys(self, sample_key: str):
+        if sample_key in self.hf:
+            return list(self.hf[sample_key].keys())
+        return []
+
     def save(self, key: str, data, sample_key: str) -> None:
         if sample_key not in self.hf:
             self.hf.create_group(sample_key)
@@ -105,7 +110,7 @@ class HFSampleSaver:
                     compression="gzip",
                 )
             else:
-                self.hf[sample_key].create_dataset(key, data=data, compression="gzip")
+                self.hf[sample_key].create_dataset(key, data=data)
         else:
             # Create a dataset for the key
             if isinstance(data, np.ndarray):

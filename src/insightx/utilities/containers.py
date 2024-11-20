@@ -22,4 +22,4 @@ class ExplanationModelOutput:
     reduced_explanations: Union[torch.Tensor, List[torch.Tensor]] = None
     explainer_args: ExplainerArguments = None
     target: Union[torch.Tensor, List[torch.Tensor]] = None
-    explanations_loaded_from_cache: bool = False
+    sample_keys: List[str] = None
