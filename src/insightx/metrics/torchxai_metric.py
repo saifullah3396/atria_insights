@@ -196,12 +196,12 @@ class TorchXAIMetric(Metric):
         loaded_metrics = None
         if self._cacher is not None:
             loaded_metrics = self._cacher.load_metrics(
-                self._metric_name,
+                f"{self._attached_name}.{self._metric_name}",
                 output.sample_keys,
             )
 
         if loaded_metrics is not None:
-            logger.info(f"Loaded metrics from cache: {loaded_metrics}")
+            logger.debug(f"Loaded metrics from cache: {loaded_metrics}")
             self._num_examples += len(loaded_metrics)
             self._metric_outputs.append(loaded_metrics)
         else:
@@ -252,7 +252,10 @@ class TorchXAIMetric(Metric):
 
             if self._cacher is not None:
                 self._cacher.save_metrics(
-                    {f"{self._metric_name}_{k}": v for k, v in metric_output.items()},
+                    {
+                        f"{self._attached_name}.{self._metric_name}_{k}": v
+                        for k, v in metric_output.items()
+                    },
                     output.sample_keys,
                 )
 

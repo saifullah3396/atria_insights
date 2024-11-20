@@ -40,7 +40,7 @@ class MetricsCacher:
                 if isinstance(metrics_batch, torch.Tensor):
                     metrics_batch = metrics_batch.detach().cpu().numpy()
                 for sample_key, metric in zip(sample_keys, metrics_batch):
-                    logger.info(
+                    logger.debug(
                         "Saving metric %s for sample %s", metric_key, sample_key
                     )
                     hfio.save(
