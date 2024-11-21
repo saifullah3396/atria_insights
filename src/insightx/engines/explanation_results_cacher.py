@@ -92,6 +92,7 @@ class ExplanationResultsCacher:
         self,
         file_path: Path,
         sample_keys: List[str],
+        concatenate_results: bool = True,
     ) -> None:
         if not file_path.exists():
             return None
@@ -115,8 +116,12 @@ class ExplanationResultsCacher:
             if len(explanations_batch) > 0:
                 explanations_batch = {
                     # convert list of dicts to dict of lists
-                    key: torch.cat(
-                        [explanation[key] for explanation in explanations_batch]
+                    key: (
+                        torch.cat(
+                            [explanation[key] for explanation in explanations_batch]
+                        )
+                        if concatenate_results
+                        else [explanation[key] for explanation in explanations_batch]
                     )
                     for key in explanations_batch[0].keys()
                 }
@@ -131,6 +136,7 @@ class ExplanationResultsCacher:
         reduced_explanations = self._load_explanations_with_base_key(
             self._output_file_path.with_suffix(".reduced.h5"),
             sample_keys,
+            concatenate_results=False,
         )
         return explanations, reduced_explanations
 
