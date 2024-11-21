@@ -6,7 +6,7 @@ metric_func:
   baselines: null
   additional_forward_args: null
   target: null
-  feature_masks: null
+  feature_mask: null
   frozen_features: null
   perturb_func:
     _target_: torchxai.metrics._utils.perturbation.default_infidelity_perturb_fn
