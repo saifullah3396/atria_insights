@@ -104,5 +104,4 @@ class ModelExplainabilityWrapper(torch.nn.Module):
         pass
 
     def forward(self, *args, **kwargs):
-        print("HERE", args, kwargs)
         return self.model(*args, **kwargs)
