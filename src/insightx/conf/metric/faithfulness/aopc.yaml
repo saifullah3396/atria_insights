@@ -13,6 +13,7 @@ metric_func:
   seed: null
   is_multi_target: false
   show_progress: false
+  return_intermediate_results: false
   return_dict: false
 output_transform:
   path: insightx.metrics.torchxai_metric.default_output_transform
@@ -20,3 +21,4 @@ output_transform:
 device: cpu
 progress_bar: null
 attached_name: null
+cacher: null

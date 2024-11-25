@@ -24,7 +24,7 @@ explanation_engine:
           noise_scale: 0.02
         n_perturb_samples: 100
         max_examples_per_batch: 100
-        perturbation_probability: 0.1
+        percent_features_perturbed: 0.1
         show_progress: true
     faithfulness_estimate:
       metric_func:

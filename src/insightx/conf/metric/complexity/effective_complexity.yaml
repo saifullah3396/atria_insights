@@ -12,6 +12,7 @@ metric_func:
     noise_scale: 0.02
   n_perturbations_per_feature: 10
   max_features_processed_per_batch: null
+  n_feature_accumulations: 1
   frozen_features: null
   eps: 1.0e-05
   return_ratio: false
@@ -26,3 +27,4 @@ output_transform:
 device: cpu
 progress_bar: null
 attached_name: null
+cacher: null
