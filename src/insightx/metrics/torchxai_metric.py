@@ -196,7 +196,7 @@ class TorchXAIMetric(Metric):
         loaded_metrics = None
         if self._cacher is not None:
             loaded_metrics = self._cacher.load_metrics(
-                f"{self._attached_name}.{self._metric_name}",
+                self._attached_name,
                 output.sample_keys,
             )
 
@@ -252,11 +252,9 @@ class TorchXAIMetric(Metric):
 
             if self._cacher is not None:
                 self._cacher.save_metrics(
-                    {
-                        f"{self._attached_name}.{self._metric_name}_{k}": v
-                        for k, v in metric_output.items()
-                    },
+                    {f"{self._metric_name}_{k}": v for k, v in metric_output.items()},
                     output.sample_keys,
+                    metric_key=self._attached_name,
                 )
 
             self._num_examples += len(metric_output)
