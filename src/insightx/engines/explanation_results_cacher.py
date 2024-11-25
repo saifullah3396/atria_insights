@@ -6,10 +6,9 @@ from typing import List, Mapping
 import torch
 from atria.core.constants import DataKeys
 from atria.core.utilities.logging import get_logger
-
+from atria.core.utilities.typing import BatchDict
 from insightx.utilities.containers import ExplanationModelOutput
 from insightx.utilities.h5io import HFSampleSaver
-from atria.core.utilities.typing import BatchDict
 
 logger = get_logger(__name__)
 
@@ -81,11 +80,17 @@ class ExplanationResultsCacher:
                     )
 
     def key_exists(self, key: str, sample_key: str) -> bool:
-        with HFSampleSaver(self._output_file_path) as hfio:
+        if not self._output_file_path.exists():
+            return False
+
+        with HFSampleSaver(self._output_file_path, mode="r") as hfio:
             return hfio.key_exists(key, sample_key)
 
     def sample_exists(self, sample_key: str) -> bool:
-        with HFSampleSaver(self._output_file_path) as hfio:
+        if not self._output_file_path.exists():
+            return False
+
+        with HFSampleSaver(self._output_file_path, mode="r") as hfio:
             return hfio.sample_exists(sample_key)
 
     def _load_explanations_with_base_key(
