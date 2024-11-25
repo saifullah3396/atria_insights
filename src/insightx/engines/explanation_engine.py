@@ -12,13 +12,12 @@ from atria.core.utilities.logging import get_logger
 from ignite.engine import Engine
 from ignite.handlers import TensorboardLogger
 from ignite.metrics import Metric
-from torch.utils.data import DataLoader
 from insightx.engines.explanation_results_cacher import ExplanationResultsCacher
-from insightx.engines.metrics_cacher import MetricsCacher
-from torchxai.explainers.explainer import Explainer
-
 from insightx.engines.explanation_step import ExplanationStep
+from insightx.engines.metrics_cacher import MetricsCacher
 from insightx.task_modules.explanation_task_module import ExplanationTaskModule
+from torch.utils.data import DataLoader
+from torchxai.explainers.explainer import Explainer
 
 logger = get_logger(__name__)
 
@@ -83,6 +82,7 @@ class ExplanationEngine(AtriaEngine):
         # initialize the output saver
         self._explanation_results_cacher = ExplanationResultsCacher(
             output_file_path=Path(self._output_dir)
+            / self._explainer.func.__name__
             / f"{self._explainer.func.__name__}.h5",
             cache_full_explanations=self._cache_full_explanations,
         )
@@ -90,7 +90,8 @@ class ExplanationEngine(AtriaEngine):
         # initialize metrics cacher
         self._metrics_cacher = MetricsCacher(
             output_file_path=Path(self._output_dir)
-            / f"{self._explainer.func.__name__}.metrics.h5",
+            / self._explainer.func.__name__
+            / f"metrics.h5",
         )
 
         # create progress bar for this engine
@@ -162,10 +163,9 @@ class ExplanationEngine(AtriaEngine):
             ]
             metrics_exist = (
                 [
-                    self._explanation_results_cacher.key_exists(sample_key, metric_key)
-                    for sample_key, metric_key in zip(
-                        engine.state.batch["__key__"], self._metrics.keys()
-                    )
+                    self._metrics_cacher.key_exists(sample_key, metric_key)
+                    for metric_key in self._metrics.keys()
+                    for sample_key in engine.state.batch["__key__"]
                 ]
                 if self._metrics is not None
                 else []
