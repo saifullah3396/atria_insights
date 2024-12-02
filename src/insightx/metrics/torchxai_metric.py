@@ -234,7 +234,10 @@ class TorchXAIMetric(Metric):
                     for key in metric_output[0].keys()
                 }
             else:
-                metric_output = self._metric_func(**metric_kwargs)
+                from torch.cuda.amp import autocast
+
+                with autocast(enabled=True):
+                    metric_output = self._metric_func(**metric_kwargs)
                 metric_output = apply_to_tensor(
                     metric_output, lambda tensor: tensor.detach().cpu()
                 )

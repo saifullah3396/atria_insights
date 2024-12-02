@@ -220,8 +220,8 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         explanation_engine: Engine,
         **kwargs,
     ) -> ExplanationModelOutput:
-        # if explanation_engine is not None and explanation_engine.state.skip_batch:
-        #     return ExplanationModelOutput()
+        if explanation_engine is not None and explanation_engine.state.skip_batch:
+            return ExplanationModelOutput()
 
         # validate model is built
         self._validate_model_built()
