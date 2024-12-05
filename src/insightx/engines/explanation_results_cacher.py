@@ -16,51 +16,116 @@ logger = get_logger(__name__)
 class ExplanationResultsCacher:
     def __init__(
         self,
-        output_file_path: HFSampleSaver,
+        output_file_path: Path,
         cache_full_explanations: bool = False,
     ) -> None:
         self._output_file_path = output_file_path
         self._cache_full_explanations = cache_full_explanations
 
+    @property
+    def explanation_file_path(self) -> Path:
+        return self._output_file_path
+
+    @property
+    def reduced_explanation_file_path(self) -> Path:
+        return self._output_file_path.with_suffix(".reduced.h5")
+
+    @property
+    def metadata_file_path(self) -> Path:
+        return self._output_file_path.parent.parent / "metadata.h5"
+
+    def explanation_exists(self, sample_key: str) -> bool:
+        if not self.explanation_file_path.exists():
+            return False
+
+        with HFSampleSaver(self.explanation_file_path, mode="r") as hfio:
+            return hfio.sample_exists(sample_key)
+
+    def batch_explanations_exists(self, batch) -> bool:
+        return all([self.explanation_exists(key) for key in batch["__key__"]])
+
+    def metadata_exists(self, sample_key: str) -> bool:
+        if not self.metadata_file_path.exists():
+            return False
+
+        with HFSampleSaver(self.metadata_file_path, mode="r") as hfio:
+            return hfio.sample_exists(sample_key)
+
+    def batch_metadata_exists(self, batch) -> bool:
+        return all([self.metadata_exists(key) for key in batch["__key__"]])
+
     def _save_metadata(
         self,
-        hfio: HFSampleSaver,
         batch: Mapping[str, torch.Tensor],
         output: ExplanationModelOutput,
     ) -> None:
-        # get sample keys
-        batch_size = len(batch["__key__"])
-        for batch_idx in range(len(batch["__key__"])):
-            # get unique sample key
-            sample_key = batch["__key__"][batch_idx]
+        print("saving metadata", self.metadata_file_path)
+        with HFSampleSaver(self.metadata_file_path) as hfio:
+            # get sample keys
+            batch_size = len(batch["__key__"])
+            for batch_idx in range(len(batch["__key__"])):
+                # get unique sample key
+                sample_key = batch["__key__"][batch_idx]
 
-            # store ground truth labels
-            for key in [
-                DataKeys.LABEL,
-                DataKeys.WORD_LABELS,
-                DataKeys.ANSWER_START_INDICES,
-                DataKeys.ANSWER_END_INDICES,
-            ]:
-                if key in batch:
-                    hfio.save_attribute(
-                        f"ground_truth_{key}",
-                        batch[key][batch_idx].detach().cpu().numpy(),
+                # store ground truth labels
+                for key in [
+                    DataKeys.LABEL,
+                    DataKeys.WORD_LABELS,
+                    DataKeys.ANSWER_START_INDICES,
+                    DataKeys.ANSWER_END_INDICES,
+                ]:
+                    if key in batch:
+                        hfio.save(
+                            f"ground_truth_{key}",
+                            batch[key][batch_idx].detach().cpu().numpy(),
+                            sample_key,
+                        )
+
+                # store predicted or explanation target labels
+                if len(output.target) == batch_size:
+                    target = output.target[batch_idx]
+
+                # save feature masks
+                for (
+                    input_key,
+                    feature_masks_per_sample,
+                ) in output.explainer_args.feature_masks.items():
+                    hfio.save(
+                        f"feature_masks_{input_key}",
+                        feature_masks_per_sample[batch_idx].detach().cpu().numpy(),
                         sample_key,
                     )
 
-            # store predicted or explanation target labels
-            if len(output.target) == batch_size:
-                target = output.target[batch_idx]
+                # save baselines
+                for (
+                    input_key,
+                    baselines_per_sample,
+                ) in output.explainer_args.baselines.items():
+                    hfio.save(
+                        f"baselines_{input_key}",
+                        baselines_per_sample[batch_idx].detach().cpu().numpy(),
+                        sample_key,
+                    )
 
-            hfio.save_attribute(
-                "pred_or_expl_target_labels",
-                (
-                    target.detach().cpu().numpy()
-                    if isinstance(target, torch.Tensor)
-                    else target
-                ),
-                sample_key,
-            )
+                # save frozen features
+                hfio.save(
+                    input_key,
+                    output.explainer_args.frozen_features[batch_idx]
+                    .detach()
+                    .cpu()
+                    .numpy(),
+                    sample_key,
+                )
+
+                hfio.save(
+                    "pred_or_expl_target_labels",
+                    (
+                        target.detach().cpu().numpy()
+                        if isinstance(target, torch.Tensor)
+                        else target
+                    ),
+                    sample_key,
+                )
 
     def _save_explanations(
         self,
@@ -78,20 +143,6 @@ class ExplanationResultsCacher:
                         explanation.detach().cpu().numpy(),
                         sample_key,
                     )
-
-    def key_exists(self, key: str, sample_key: str) -> bool:
-        if not self._output_file_path.exists():
-            return False
-
-        with HFSampleSaver(self._output_file_path, mode="r") as hfio:
-            return hfio.key_exists(key, sample_key)
-
-    def sample_exists(self, sample_key: str) -> bool:
-        if not self._output_file_path.exists():
-            return False
-
-        with HFSampleSaver(self._output_file_path, mode="r") as hfio:
-            return hfio.sample_exists(sample_key)
 
     def _load_explanations_with_base_key(
         self,
@@ -118,6 +169,12 @@ class ExplanationResultsCacher:
                 if len(explanations_per_sample) > 0:
                     explanations_batch.append(explanations_per_sample)
 
+            if len(explanations_batch) != len(sample_keys):
+                logger.warning(
+                    f"Missing explanations for {len(sample_keys) - len(explanations_batch)} samples"
+                )
+                return None
+
             if len(explanations_batch) > 0:
                 explanations_batch = {
                     # convert list of dicts to dict of lists
@@ -132,27 +189,30 @@ class ExplanationResultsCacher:
                 }
             else:
                 explanations_batch = None
+
             return explanations_batch
 
     def load_explanations(self, sample_keys: List[str]) -> None:
         explanations = self._load_explanations_with_base_key(
-            self._output_file_path, sample_keys
+            self.explanation_file_path, sample_keys
         )
         reduced_explanations = self._load_explanations_with_base_key(
-            self._output_file_path.with_suffix(".reduced.h5"),
+            self.reduced_explanation_file_path,
             sample_keys,
             concatenate_results=False,
         )
         return explanations, reduced_explanations
 
     def save_results(self, batch: BatchDict, output: ExplanationModelOutput) -> None:
-        with HFSampleSaver(self._output_file_path) as hfio:
-            self._save_metadata(hfio, batch, output)
-
+        self._save_metadata(batch, output)
         if self._cache_full_explanations:
-            self._save_explanations(self._output_file_path, output.explanations, batch)
-        self._save_explanations(
-            self._output_file_path.with_suffix(".reduced.h5"),
-            output.reduced_explanations,
-            batch,
-        )
+            if output.explanations is not None:
+                self._save_explanations(
+                    self.explanation_file_path, output.explanations, batch
+                )
+        if output.reduced_explanations is not None:
+            self._save_explanations(
+                self.reduced_explanation_file_path,
+                output.reduced_explanations,
+                batch,
+            )
