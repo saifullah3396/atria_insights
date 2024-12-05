@@ -52,7 +52,7 @@ def build_configurations():
     cs: ConfigStore = ModuleRegistry.build_module_configurations()
 
     root_package_dir = Path(args.configurations_dir)
-    print(f"Building atria configurations.")
+    print(f"Building insightx configurations.")
     dump_configurations(root_package_dir, cs.repo)
 
 
