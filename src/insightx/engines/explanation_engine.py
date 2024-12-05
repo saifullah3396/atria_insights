@@ -157,21 +157,18 @@ class ExplanationEngine(AtriaEngine):
                 engine.state.skip_batch = False
                 return
 
-            batch_exists = [
-                self._explanation_results_cacher.sample_exists(key)
-                for key in engine.state.batch["__key__"]
-            ]
-            metrics_exist = (
-                [
-                    self._metrics_cacher.key_exists(sample_key, metric_key)
-                    for metric_key in self._metrics.keys()
-                    for sample_key in engine.state.batch["__key__"]
-                ]
-                if self._metrics is not None
-                else []
+            metadata_exists = self._explanation_results_cacher.batch_metadata_exists(
+                engine.state.batch
             )
-            batch_done = all(batch_exists + metrics_exist)
-            if batch_done:
+            explanations_exists = (
+                self._explanation_results_cacher.batch_explanations_exists(
+                    engine.state.batch
+                )
+            )
+            metrics_exist = self._metrics_cacher.metrics_exist(
+                engine.state.batch, self._metrics
+            )
+            if metadata_exists and explanations_exists and metrics_exist:
                 engine.state.skip_batch = True
             else:
                 engine.state.skip_batch = False
