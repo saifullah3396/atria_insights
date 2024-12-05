@@ -3,21 +3,25 @@ _partial_: true
 metric_func:
   _target_: torchxai.metrics.axiomatic.monotonicity_corr_and_non_sens.monotonicity_corr_and_non_sens
   _partial_: true
+  baselines: null
   feature_mask: null
   additional_forward_args: null
   target: null
+  frozen_features: null
   perturb_func:
     _target_: torchxai.metrics._utils.perturbation.default_random_perturb_func
     _partial_: false
-    noise_scale: 0.02
   n_perturbations_per_feature: 10
   max_features_processed_per_batch: null
-  eps: 1.0e-05
-  is_multi_target: false
-  frozen_features: null
+  feature_removal_beam_size_percentage: 0.0
+  zero_attribution_threshold: 0.01
+  zero_variance_threshold: 0.01
+  use_percentage_attribution_threshold: true
+  return_ratio: true
   show_progress: false
   return_intermediate_results: false
   return_dict: false
+  is_multi_target: false
 output_transform:
   path: insightx.metrics.torchxai_metric.default_output_transform
   _target_: hydra_zen.funcs.get_obj

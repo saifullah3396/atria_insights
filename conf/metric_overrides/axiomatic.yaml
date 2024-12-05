@@ -11,7 +11,6 @@ explanation_engine:
       metric_func:
         perturb_func:
           _target_: torchxai.metrics._utils.perturbation.default_random_perturb_func
-          noise_scale: 0.02
         n_perturbations_per_feature: 10
         max_features_processed_per_batch: 100
         eps: 1.0e-05
