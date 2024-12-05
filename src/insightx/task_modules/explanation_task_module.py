@@ -27,6 +27,7 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         self,
         model_explainability_wrapper: partial[ModelExplainabilityWrapper],
         is_multi_target: bool = False,
+        save_metadata_only: bool = False,
         *args,
         **kwargs,
     ):
@@ -34,6 +35,7 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         self._model_explainability_wrapper = model_explainability_wrapper
         self._is_multi_target = is_multi_target
         self._explanation_results_cacher: ExplanationResultsCacher = None
+        self._save_metadata_only = save_metadata_only
 
     def toggle_explainability(self, state: bool):
         self.torch_model.toggle_explainability(state)
@@ -248,6 +250,18 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         # prepare target
         target = self._prepare_target(batch=batch, explainer_args=explainer_args)
 
+        # save metadata only
+        if self._save_metadata_only and self._explanation_results_cacher is not None:
+            explainer_output = ExplanationModelOutput(
+                explanations=None,
+                reduced_explanations=None,
+                explainer_args=explainer_args,
+                target=target,
+                sample_keys=batch["__key__"],
+            )
+            self._explanation_results_cacher.save_results(batch, explainer_output)
+            return explainer_output
+
         # load explanations from cache if available
         if self._explanation_results_cacher is not None:
             explanations, reduced_explanations = (
@@ -259,29 +273,20 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
                 explanations = OrderedDict(
                     {key: explanations[key] for key in explainer_args.inputs.keys()}
                 )
-            if reduced_explanations is not None:
-                # convert dict to ordered dict
-                reduced_explanations = OrderedDict(
-                    {
-                        key: reduced_explanations[key]
-                        for key in explainer_args.inputs.keys()
-                    }
-                )
+                if reduced_explanations is not None:
+                    # convert dict to ordered dict
+                    reduced_explanations = OrderedDict(
+                        {
+                            key: reduced_explanations[key]
+                            for key in explainer_args.inputs.keys()
+                        }
+                    )
+                else:
+                    reduced_explanations = (
+                        self._reduce_explanations(batch, explainer_args, explanations),
+                    )
 
             if explanations is not None:
-                return ExplanationModelOutput(
-                    explanations=convert_tensor(explanations, device=target.device),
-                    reduced_explanations=reduced_explanations,
-                    explainer_args=explainer_args,
-                    target=target,
-                    sample_keys=batch["__key__"],
-                )
-            elif reduced_explanations is not None:
-                explanations = self._invert_reduced_explanations(
-                    batch=batch,
-                    explainer_args=explainer_args,
-                    reduced_explanations=reduced_explanations,
-                )
                 return ExplanationModelOutput(
                     explanations=convert_tensor(explanations, device=target.device),
                     reduced_explanations=reduced_explanations,
@@ -329,11 +334,3 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         explanations: Dict[str, torch.Tensor],
     ) -> Dict[str, torch.Tensor]:
         return explanations
-
-    def _invert_reduced_explanations(
-        self,
-        batch: BatchDict,
-        explainer_args: ExplainerArguments,
-        reduced_explanations: Dict[str, torch.Tensor],
-    ) -> Dict[str, torch.Tensor]:
-        return reduced_explanations
