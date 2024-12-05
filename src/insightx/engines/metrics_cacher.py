@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, List, Mapping
+from typing import Any, Dict, List, Mapping
 
 import torch
 from atria.core.utilities.logging import get_logger
@@ -19,14 +19,28 @@ class MetricsCacher:
         self._output_file_path = output_file_path
         self._output_file_path.parent.mkdir(exist_ok=True, parents=True)
 
-    def key_exists(self, sample_key: str, metric_key: str) -> bool:
-        metric_file_path = self._output_file_path.with_suffix(f".{metric_key}.h5")
+    def _get_metric_path(self, metric_key: str) -> Path:
+        return self._output_file_path.with_suffix(f".{metric_key}.h5")
+
+    def _key_exists(self, sample_key: str, metric_key: str) -> bool:
+        metric_file_path = self._get_metric_path(metric_key)
         if not Path(metric_file_path).exists():
             return False
 
         with HFSampleSaver(metric_file_path, mode="r") as hfio:
             return hfio.sample_exists(sample_key)
         return False
+
+    def metrics_exist(self, batch: Dict[str, Any], metrics: Dict[str, str]) -> bool:
+        return all(
+            [
+                self._key_exists(sample_key, metric_key)
+                for metric_key in metrics.keys()
+                for sample_key in batch["__key__"]
+            ]
+            if metrics is not None
+            else []
+        )
 
     def save_metrics(
         self,
@@ -38,7 +52,7 @@ class MetricsCacher:
         metrics = _flatten_dict(metrics)
 
         with HFSampleSaver(
-            self._output_file_path.with_suffix(f".{metric_key}.h5")
+            self._get_metric_path(metric_key),
         ) as hfio:
             for metric_param_name, metrics_batch in metrics.items():
                 if isinstance(metrics_batch, torch.Tensor):
@@ -58,7 +72,7 @@ class MetricsCacher:
         metric_key: str,
         sample_keys: List[str],
     ) -> None:
-        metric_file_path = self._output_file_path.with_suffix(f".{metric_key}.h5")
+        metric_file_path = self._get_metric_path(metric_key)
         if not metric_file_path.exists():
             return None
         with HFSampleSaver(metric_file_path, mode="r") as hfio:
