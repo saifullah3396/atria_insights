@@ -110,6 +110,7 @@ class TorchXAIMetric(Metric):
                 if output.explainer_args.frozen_features is not None
                 else None
             ),
+            train_baselines=tuple(output.explainer_args.train_baselines.values()),
             return_intermediate_results=True,
             return_dict=True,
             show_progress=True,
