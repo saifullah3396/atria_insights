@@ -59,7 +59,6 @@ class ExplanationResultsCacher:
         batch: Mapping[str, torch.Tensor],
         output: ExplanationModelOutput,
     ) -> None:
-        print("saving metadata", self.metadata_file_path)
         with HFSampleSaver(self.metadata_file_path) as hfio:
             # get sample keys
             batch_size = len(batch["__key__"])
@@ -101,11 +100,12 @@ class ExplanationResultsCacher:
                     input_key,
                     baselines_per_sample,
                 ) in output.explainer_args.baselines.items():
-                    hfio.save(
-                        f"baselines_{input_key}",
-                        baselines_per_sample[batch_idx].detach().cpu().numpy(),
-                        sample_key,
-                    )
+                    if baselines_per_sample is not None:
+                        hfio.save(
+                            f"baselines_{input_key}",
+                            baselines_per_sample[batch_idx].detach().cpu().numpy(),
+                            sample_key,
+                        )
 
                 # save frozen features
                 hfio.save(
