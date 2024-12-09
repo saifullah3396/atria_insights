@@ -8,6 +8,7 @@ import torch
 class ExplainerArguments:
     inputs: Mapping[str, torch.Tensor] = None
     baselines: Mapping[str, torch.Tensor] = None
+    metric_baselines: Mapping[str, torch.Tensor] = None
     feature_masks: Mapping[str, torch.Tensor] = None
     additional_forward_kwargs: Dict[str, Any] = None
     constant_shifts: Mapping[str, torch.Tensor] = None

@@ -10,14 +10,13 @@ from atria.core.utilities.common import _get_possible_args, _get_required_args
 from atria.core.utilities.logging import get_logger
 from atria.core.utilities.typing import BatchDict
 from ignite.engine import Engine
-from ignite.utils import apply_to_tensor
+from ignite.utils import apply_to_tensor, convert_tensor
 from insightx.engines.explanation_results_cacher import ExplanationResultsCacher
 from insightx.model_explainability_wrappers.base import ModelExplainabilityWrapper
 from insightx.task_modules.model_output_wrappers import SoftmaxWrapper
 from insightx.task_modules.utilities import _get_model_forward_fn
 from insightx.utilities.containers import ExplainerArguments, ExplanationModelOutput
 from torchxai.explainers.explainer import Explainer
-from ignite.utils import convert_tensor
 
 logger = get_logger(__name__)
 
@@ -183,7 +182,8 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
 
         # detach tensors
         apply_to_tensor(explainer_args.inputs, torch.detach)
-        apply_to_tensor(explainer_args.baselines, torch.detach)
+        if all(x is not None for x in explainer_args.baselines.values()):
+            apply_to_tensor(explainer_args.baselines, torch.detach)
         apply_to_tensor(explainer_args.additional_forward_kwargs, torch.detach)
         apply_to_tensor(explainer_args.feature_masks, torch.detach)
         apply_to_tensor(explanations, torch.detach)

@@ -29,6 +29,9 @@ class ModelExplainabilityWrapper(torch.nn.Module):
         with torch.no_grad():
             inputs = self._prepare_explainable_inputs(*args, **kwargs)
             baselines = self._prepare_baselines_from_inputs(*args, **kwargs)
+            metric_baselines = self._prepare_metric_baselines_from_inputs(
+                *args, **kwargs
+            )
             feature_masks, frozen_features = self._prepare_feature_masks_from_inputs(
                 *args, **kwargs
             )
@@ -44,6 +47,7 @@ class ModelExplainabilityWrapper(torch.nn.Module):
             return ExplainerArguments(
                 inputs=inputs,
                 baselines=baselines,
+                metric_baselines=metric_baselines,
                 feature_masks=feature_masks,
                 additional_forward_kwargs=(
                     {}
@@ -64,6 +68,11 @@ class ModelExplainabilityWrapper(torch.nn.Module):
         self, *args, **kwargs
     ) -> Dict[str, torch.Tensor]:
         pass
+
+    def _prepare_metric_baselines_from_inputs(
+        self, *args, **kwargs
+    ) -> Dict[str, torch.Tensor]:
+        return self._prepare_baselines_from_inputs(*args, **kwargs)
 
     @abstractmethod
     def _prepare_feature_masks_from_inputs(
