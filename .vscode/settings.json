@@ -24,6 +24,14 @@
     "editor.rulers": [
         120
     ],
+    "python.analysis.extraPaths": [
+        "../external/atria/src",
+        "../external/torchxai/src",
+    ],
+    "python.autoComplete.extraPaths": [
+        "../external/atria/src",
+        "../external/torchxai/src",
+    ],
     "workbench.colorCustomizations": {
         // will change the color of three dots to red
         "editorHint.foreground": "#ff0000",
