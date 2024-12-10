@@ -9,14 +9,14 @@ metric_func:
   target: null
   frozen_features: null
   perturb_func:
-    _target_: torchxai.metrics._utils.perturbation.default_random_perturb_func
+    _target_: torchxai.metrics._utils.perturbation.default_fixed_baseline_perturb_func
     _partial_: false
   n_perturbations_per_feature: 10
   max_features_processed_per_batch: null
-  feature_removal_beam_size_percentage: 0.0
-  zero_attribution_threshold: 0.01
-  zero_variance_threshold: 0.01
-  use_percentage_attribution_threshold: true
+  percentage_feature_removal_per_step: 0.0
+  zero_attribution_threshold: 1.0e-05
+  zero_variance_threshold: 1.0e-05
+  use_percentage_attribution_threshold: false
   return_ratio: true
   show_progress: false
   return_intermediate_results: false

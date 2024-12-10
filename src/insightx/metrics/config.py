@@ -18,8 +18,8 @@ from torchxai.metrics import (
     sparseness,
 )
 from torchxai.metrics._utils.perturbation import (
+    default_fixed_baseline_perturb_func,
     default_infidelity_perturb_fn,
-    default_random_perturb_func,
 )
 from torchxai.metrics.complexity.complexity_entropy import (
     complexity_entropy_feature_grouped,
@@ -65,7 +65,7 @@ ModuleRegistry.register_metric(
         populate_full_signature=True,
         zen_partial=True,
         perturb_func=builds(
-            default_random_perturb_func,
+            default_fixed_baseline_perturb_func,
             populate_full_signature=True,
             zen_partial=False,
         ),
@@ -132,7 +132,7 @@ ModuleRegistry.register_metric(
         populate_full_signature=True,
         zen_partial=True,
         perturb_func=builds(
-            default_random_perturb_func,
+            default_fixed_baseline_perturb_func,
             populate_full_signature=True,
             zen_partial=False,
         ),
@@ -188,7 +188,7 @@ ModuleRegistry.register_metric(
         populate_full_signature=True,
         zen_partial=True,
         perturb_func=builds(
-            default_random_perturb_func,
+            default_fixed_baseline_perturb_func,
             populate_full_signature=True,
             zen_partial=False,
         ),

@@ -109,7 +109,7 @@ class ExplanationResultsCacher:
 
                 # save frozen features
                 hfio.save(
-                    input_key,
+                    "frozen_features",
                     output.explainer_args.frozen_features[batch_idx]
                     .detach()
                     .cpu()

@@ -8,9 +8,8 @@ metric_func:
   additional_forward_args: null
   target: null
   perturb_func:
-    _target_: torchxai.metrics._utils.perturbation.default_random_perturb_func
+    _target_: torchxai.metrics._utils.perturbation.default_fixed_baseline_perturb_func
     _partial_: false
-    noise_scale: 0.02
   n_perturb_samples: 10
   max_examples_per_batch: null
   frozen_features: null

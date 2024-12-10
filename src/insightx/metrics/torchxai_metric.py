@@ -85,8 +85,20 @@ class TorchXAIMetric(Metric):
             attributions=tuple(
                 apply_to_tensor(x, torch.detach) for x in output.explanations.values()
             ),
-            baselines=tuple(
-                x.detach() for x in output.explainer_args.baselines.values()
+            baselines=(
+                tuple(
+                    x.detach() for x in output.explainer_args.metric_baselines.values()
+                )
+                if all(
+                    x is not None
+                    for x in output.explainer_args.metric_baselines.values()
+                )
+                else None
+            ),
+            explainer_baselines=(
+                tuple(x.detach() for x in output.explainer_args.baselines.values())
+                if all(x is not None for x in output.explainer_args.baselines.values())
+                else None
             ),
             feature_mask=tuple(
                 x.detach() for x in output.explainer_args.feature_masks.values()
@@ -118,7 +130,15 @@ class TorchXAIMetric(Metric):
 
         possible_args = set(inspect.signature(self._metric_func).parameters)
         if "explainer" in possible_args:
+            explainer_possible_args = set(
+                inspect.signature(explainer.explain).parameters
+            )
+            if "baselines" in explainer_possible_args:
+                if "baselines" in possible_args:
+                    possible_args.remove("baselines")
+                possible_args.add("explainer_baselines")
             possible_args.update(set(inspect.signature(explainer.explain).parameters))
+
         if is_target_list_of_lists:
             batch_size = output.explainer_args.inputs[
                 next(iter(output.explainer_args.inputs))
