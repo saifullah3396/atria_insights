@@ -152,6 +152,7 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         explainer: partial[Explainer],
         explainer_args: ExplainerArguments,
         target: Union[torch.Tensor, List[torch.Tensor]],
+        model_outputs: torch.Tensor,
     ):
         # initialize explainer
         explainer = explainer(self.torch_model, is_multi_target=self._is_multi_target)
@@ -196,6 +197,7 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
             ),
             explainer_args=explainer_args,
             target=target,
+            model_outputs=model_outputs,
             sample_keys=batch["__key__"],
         )
 
@@ -296,6 +298,7 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
                     reduced_explanations=reduced_explanations,
                     explainer_args=explainer_args,
                     target=target,
+                    model_outputs=model_outputs,
                     sample_keys=batch["__key__"],
                 )
 
@@ -305,6 +308,7 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
             explainer=explainer,
             explainer_args=explainer_args,
             target=target,
+            model_outputs=model_outputs,
         )
         assert isinstance(
             explainer_output, ExplanationModelOutput

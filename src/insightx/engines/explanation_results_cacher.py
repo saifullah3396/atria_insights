@@ -131,7 +131,6 @@ class ExplanationResultsCacher:
                     .numpy(),
                     sample_key,
                 )
-
                 # store predicted or explanation target labels
                 assert len(output.target) == batch_size, (
                     f"Expected target to have the same length as the batch size, "
@@ -210,8 +209,8 @@ class ExplanationResultsCacher:
                     explanations_batch.append(explanations_per_sample)
 
             if len(explanations_batch) != len(sample_keys):
-                logger.warning(
-                    f"Missing explanations for {len(sample_keys) - len(explanations_batch)} samples"
+                logger.debug(
+                    f"No cached explanations found for {len(sample_keys) - len(explanations_batch)} samples in batch."
                 )
                 return None
 
