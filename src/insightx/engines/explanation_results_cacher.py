@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Mapping
+from typing import Any, List, Mapping
 
 import torch
 from atria.core.constants import DataKeys
@@ -58,6 +58,7 @@ class ExplanationResultsCacher:
         self,
         batch: Mapping[str, torch.Tensor],
         output: ExplanationModelOutput,
+        dataset_labels: Any = None,
     ) -> None:
         with HFSampleSaver(self.metadata_file_path) as hfio:
             # get sample keys
@@ -65,6 +66,10 @@ class ExplanationResultsCacher:
             for batch_idx in range(len(batch["__key__"])):
                 # get unique sample key
                 sample_key = batch["__key__"][batch_idx]
+
+                # store dataset labels
+                if dataset_labels is not None:
+                    hfio.save("dataset_labels", dataset_labels, sample_key)
 
                 # store ground truth labels
                 for key in [
@@ -80,9 +85,12 @@ class ExplanationResultsCacher:
                             sample_key,
                         )
 
-                # store predicted or explanation target labels
-                if len(output.target) == batch_size:
-                    target = output.target[batch_idx]
+                # store words
+                hfio.save(
+                    f"words",
+                    batch["words"][batch_idx],
+                    sample_key,
+                )
 
                 # save feature masks
                 for (
@@ -107,6 +115,13 @@ class ExplanationResultsCacher:
                             sample_key,
                         )
 
+                # save total feature groups
+                hfio.save(
+                    "total_features",
+                    output.explainer_args.total_features,
+                    sample_key,
+                )
+
                 # save frozen features
                 hfio.save(
                     "frozen_features",
@@ -117,13 +132,38 @@ class ExplanationResultsCacher:
                     sample_key,
                 )
 
+                # store predicted or explanation target labels
+                assert len(output.target) == batch_size, (
+                    f"Expected target to have the same length as the batch size, "
+                    f"but got {len(output.target)} and {batch_size}"
+                )
+                assert len(output.model_outputs) == batch_size, (
+                    f"Expected model outputs to have the same length as the batch size, "
+                    f"but got {len(output.model_outputs)} and {batch_size}"
+                )
+
+                target = output.target[batch_idx]
+                model_output = output.model_outputs[batch_idx]
+                target = (
+                    target.detach().cpu().numpy()
+                    if isinstance(target, torch.Tensor)
+                    else target
+                )
+                model_output = (
+                    model_output.detach().cpu().numpy()
+                    if isinstance(model_output, torch.Tensor)
+                    else model_output
+                )
+
+                # save target and target output
                 hfio.save(
                     "pred_or_expl_target_labels",
-                    (
-                        target.detach().cpu().numpy()
-                        if isinstance(target, torch.Tensor)
-                        else target
-                    ),
+                    target,
+                    sample_key,
+                )
+                hfio.save(
+                    "model_outputs",
+                    model_output,
                     sample_key,
                 )
 
@@ -203,8 +243,10 @@ class ExplanationResultsCacher:
         )
         return explanations, reduced_explanations
 
-    def save_results(self, batch: BatchDict, output: ExplanationModelOutput) -> None:
-        self._save_metadata(batch, output)
+    def save_results(
+        self, batch: BatchDict, output: ExplanationModelOutput, dataset_labels: Any
+    ) -> None:
+        self._save_metadata(batch, output, dataset_labels=dataset_labels)
         if self._cache_full_explanations:
             if output.explanations is not None:
                 self._save_explanations(

@@ -32,7 +32,7 @@ class ModelExplainabilityWrapper(torch.nn.Module):
             metric_baselines = self._prepare_metric_baselines_from_inputs(
                 *args, **kwargs
             )
-            feature_masks, frozen_features = self._prepare_feature_masks_from_inputs(
+            feature_masks, total_features, frozen_features = self._prepare_feature_masks_from_inputs(
                 *args, **kwargs
             )
             feature_masks = self._expand_feature_masks_to_explainable_inputs(
@@ -49,6 +49,7 @@ class ModelExplainabilityWrapper(torch.nn.Module):
                 baselines=baselines,
                 metric_baselines=metric_baselines,
                 feature_masks=feature_masks,
+                total_features=total_features,
                 additional_forward_kwargs=(
                     {}
                     if additional_forward_kwargs is None

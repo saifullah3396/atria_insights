@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Any, Dict, List, Mapping, Union
+from typing import Any, Dict, List, Mapping, Optional, Union
 
 import torch
 
@@ -10,6 +10,7 @@ class ExplainerArguments:
     baselines: Mapping[str, torch.Tensor] = None
     metric_baselines: Mapping[str, torch.Tensor] = None
     feature_masks: Mapping[str, torch.Tensor] = None
+    total_features: Optional[int] = None
     additional_forward_kwargs: Dict[str, Any] = None
     constant_shifts: Mapping[str, torch.Tensor] = None
     input_layer_names: Mapping[str, str] = None
@@ -23,4 +24,5 @@ class ExplanationModelOutput:
     reduced_explanations: Union[torch.Tensor, List[torch.Tensor]] = None
     explainer_args: ExplainerArguments = None
     target: Union[torch.Tensor, List[torch.Tensor]] = None
+    model_outputs: Union[torch.Tensor, List[torch.Tensor]] = None
     sample_keys: List[str] = None

@@ -224,7 +224,6 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
     ) -> ExplanationModelOutput:
         if explanation_engine is not None and explanation_engine.state.skip_batch:
             return ExplanationModelOutput()
-
         # validate model is built
         self._validate_model_built()
 
@@ -248,7 +247,9 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         )
 
         # prepare target
-        target = self._prepare_target(batch=batch, explainer_args=explainer_args)
+        target, model_outputs = self._prepare_target(
+            batch=batch, explainer_args=explainer_args
+        )
 
         # save metadata only
         if self._save_metadata_only and self._explanation_results_cacher is not None:
@@ -257,9 +258,12 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
                 reduced_explanations=None,
                 explainer_args=explainer_args,
                 target=target,
+                model_outputs=model_outputs,
                 sample_keys=batch["__key__"],
             )
-            self._explanation_results_cacher.save_results(batch, explainer_output)
+            self._explanation_results_cacher._save_metadata(
+                batch, explainer_output, dataset_labels=self._dataset_metadata.labels
+            )
             return explainer_output
 
         # load explanations from cache if available
@@ -308,7 +312,9 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
 
         # save explanations to cache
         if self._explanation_results_cacher is not None:
-            self._explanation_results_cacher.save_results(batch, explainer_output)
+            self._explanation_results_cacher.save_results(
+                batch, explainer_output, dataset_labels=self._dataset_metadata.labels
+            )
 
         return explainer_output
 
