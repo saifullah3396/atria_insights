@@ -44,8 +44,8 @@ dependencies = [
     "tqdm==4.66.4",
     "captum",
     "pytest",
-    "torchxai @ git+https://github.com/saifullah3396/torchxai.git",
-    "atria @ git+https://git.opendfki.de/saifullah/atria.git"
+    "torchxai @ git+https://github.com/saifullah3396/torchxai.git@1.0.0",
+    "atria @ git+https://git.opendfki.de/saifullah/atria.git@1.0.0"
 ]
 
 [project.optional-dependencies]
