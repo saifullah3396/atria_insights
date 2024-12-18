@@ -293,8 +293,9 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
                     )
 
             if explanations is not None:
+                device = list(explainer_args.inputs.values())[0].device
                 return ExplanationModelOutput(
-                    explanations=convert_tensor(explanations, device=target.device),
+                    explanations=convert_tensor(explanations, device=device),
                     reduced_explanations=reduced_explanations,
                     explainer_args=explainer_args,
                     target=target,
