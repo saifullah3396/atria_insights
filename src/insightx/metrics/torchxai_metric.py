@@ -12,6 +12,7 @@ from ignite.metrics.metric import Metric, reinit__is_reduced, sync_all_reduce
 from ignite.utils import apply_to_tensor
 from insightx.engines.metrics_cacher import MetricsCacher
 from insightx.utilities.containers import ExplanationModelOutput
+from torch.cuda.amp import autocast
 from torchxai.explainers.explainer import Explainer
 
 logger = get_logger(__name__)
@@ -148,26 +149,36 @@ class TorchXAIMetric(Metric):
             for batch_idx in range(batch_size):
                 current_metric_kwargs = {}
                 for k, v in metric_kwargs.items():
-                    if k in [
-                        "forward_func",
-                        "is_multi_target",
-                        "explainer",
-                        "constant_shifts",
-                        "input_layer_names",
-                        "return_intermediate_results",
-                        "return_dict",
-                    ]:
-                        current_metric_kwargs[k] = v
-                        continue
+                    try:
+                        if v is None:
+                            current_metric_kwargs[k] = None
+                            continue
+                        if k in [
+                            "forward_func",
+                            "is_multi_target",
+                            "explainer",
+                            "constant_shifts",
+                            "input_layer_names",
+                            "return_intermediate_results",
+                            "return_dict",
+                            "show_progress",
+                        ]:
+                            current_metric_kwargs[k] = v
+                            continue
 
-                    if isinstance(v, tuple):
-                        current_metric_kwargs[k] = tuple(
-                            v_i[batch_idx].unsqueeze(0) for v_i in v
+                        if isinstance(v, tuple):
+                            current_metric_kwargs[k] = tuple(
+                                v_i[batch_idx].unsqueeze(0) for v_i in v
+                            )
+                        elif isinstance(v, torch.Tensor):
+                            current_metric_kwargs[k] = v[batch_idx].unsqueeze(0)
+                        else:
+                            current_metric_kwargs[k] = v[batch_idx]
+                    except Exception as e:
+                        logger.exception(
+                            f"An error occurred while preparing metric kwargs {k}: {v} for multi-target scenario. Error: {e}"
                         )
-                    elif isinstance(v, torch.Tensor):
-                        current_metric_kwargs[k] = v[batch_idx].unsqueeze(0)
-                    else:
-                        current_metric_kwargs[k] = v[batch_idx]
+                        exit(1)
 
                 total_targets = len(current_metric_kwargs["target"])
                 assert all(
@@ -241,22 +252,20 @@ class TorchXAIMetric(Metric):
             if isinstance(metric_kwargs, list):
                 metric_output = []
                 for metric_kwargs_per_sample in metric_kwargs:
-                    metric_output_per_sample = self._metric_func(
-                        **metric_kwargs_per_sample
-                    )
-                    metric_output_per_sample = apply_to_tensor(
-                        metric_output_per_sample, lambda tensor: tensor.detach().cpu()
-                    )
-                    metric_output.append(
-                        {k: torch.cat(v) for k, v in metric_output_per_sample.items()}
-                    )
+                    with autocast(enabled=True):
+                        metric_output_per_sample = self._metric_func(
+                            **metric_kwargs_per_sample
+                        )
+                        metric_output_per_sample = apply_to_tensor(
+                            metric_output_per_sample,
+                            lambda tensor: tensor.detach().cpu(),
+                        )
+                        metric_output.append(metric_output_per_sample)
                 metric_output = {
                     key: [d[key] for d in metric_output]
                     for key in metric_output[0].keys()
                 }
             else:
-                from torch.cuda.amp import autocast
-
                 with autocast(enabled=True):
                     metric_output = self._metric_func(**metric_kwargs)
                 metric_output = apply_to_tensor(
