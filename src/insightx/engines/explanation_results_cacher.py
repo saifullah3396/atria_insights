@@ -85,12 +85,22 @@ class ExplanationResultsCacher:
                             sample_key,
                         )
 
-                # store words
-                hfio.save(
-                    f"words",
-                    batch["words"][batch_idx],
-                    sample_key,
-                )
+                # store sample info
+                for key in [
+                    DataKeys.IMAGE_FILE_PATH,
+                    DataKeys.WORDS,
+                    DataKeys.WORD_BBOXES,
+                ]:
+                    if key in batch:
+                        hfio.save(
+                            key,
+                            (
+                                batch[key][batch_idx].detach().cpu().numpy()
+                                if isinstance(batch[key], torch.Tensor)
+                                else batch[key][batch_idx]
+                            ),
+                            sample_key,
+                        )
 
                 # save feature masks
                 for (
