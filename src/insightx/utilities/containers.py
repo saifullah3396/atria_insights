@@ -18,11 +18,18 @@ class ExplainerArguments:
     frozen_features: torch.Tensor = None
 
 
-@dataclasses.dataclass
-class ExplanationModelOutput:
-    explanations: Union[torch.Tensor, List[torch.Tensor]] = None
-    reduced_explanations: Union[torch.Tensor, List[torch.Tensor]] = None
+@dataclasses.dataclass(frozen=True)
+class ExplanationStepMetadata:
+    sample_keys: List[str] = None
     explainer_args: ExplainerArguments = None
     target: Union[torch.Tensor, List[torch.Tensor]] = None
+    target_word_ids: List[List[int]] = None
     model_outputs: Union[torch.Tensor, List[torch.Tensor]] = None
-    sample_keys: List[str] = None
+    dataset_labels: Any = None
+
+
+@dataclasses.dataclass(frozen=True)
+class ExplanationStepOutput:
+    metadata: ExplanationStepMetadata = None
+    explanations: Union[torch.Tensor, List[torch.Tensor]] = None
+    reduced_explanations: Union[torch.Tensor, List[torch.Tensor]] = None

@@ -41,6 +41,7 @@ class ExplanationEngine(AtriaEngine):
         test_run: bool = False,
         force_recompute: bool = False,
         cache_full_explanations: bool = False,
+        save_metadata_only: bool = False,
     ):
         _validate_partial_class(engine_step, ExplanationStep, "engine_step")
         self._explainer = explainer
@@ -49,6 +50,7 @@ class ExplanationEngine(AtriaEngine):
         self._metrics_cacher = None
         self._force_recompute = force_recompute
         self._cache_full_explanations = cache_full_explanations
+        self._save_metadata_only = save_metadata_only
         super().__init__(
             output_dir=output_dir,
             task_module=task_module,
@@ -71,14 +73,6 @@ class ExplanationEngine(AtriaEngine):
             TqdmToLogger,
         )
 
-        # initialize the engine step
-        self._engine_step = self._engine_step(
-            task_module=self._task_module,
-            explainer=self._explainer,
-            device=self._device,
-            train_baselines=self._train_baselines,
-        )
-
         # initialize the output saver
         self._explanation_results_cacher = ExplanationResultsCacher(
             output_file_path=Path(self._output_dir)
@@ -96,15 +90,8 @@ class ExplanationEngine(AtriaEngine):
 
         # create progress bar for this engine
         self._progress_bar = AtriaProgressBar(
-            desc=f"Stage [{self._engine_step.stage}]",
             persist=True,
             file=TqdmToLogger(get_logger()),  # main logger causes problems here
-        )
-
-        # attach the progress bar to task module
-        self._task_module.attach_progress_bar(self._progress_bar)
-        self._task_module.attach_explanation_results_cacher(
-            self._explanation_results_cacher
         )
 
         # initialize the metrics to the required device
@@ -119,6 +106,17 @@ class ExplanationEngine(AtriaEngine):
                 )
                 for key, metric in self._metrics.items()
             }
+
+        # initialize the engine step
+        self._engine_step = self._engine_step(
+            task_module=self._task_module,
+            explainer=self._explainer,
+            device=self._device,
+            train_baselines=self._train_baselines,
+            explanation_results_cacher=self._explanation_results_cacher,
+            progress_bar=self._progress_bar,
+            save_metadata_only=self._save_metadata_only,
+        )
 
     def _configure_metrics(self, engine: Engine) -> None:
         from ignite.metrics.metric import RunningBatchWise
@@ -181,9 +179,3 @@ class ExplanationEngine(AtriaEngine):
         self._configure_metrics(engine=engine)
         self._configure_progress_bar(engine=engine)
         self._configure_tb_logger(engine=engine)
-
-    def run(self):
-        self._task_module.toggle_explainability(True)
-        engine_output = super().run()
-        self._task_module.toggle_explainability(False)
-        return engine_output

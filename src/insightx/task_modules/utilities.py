@@ -1,4 +1,6 @@
+import torch
 from insightx.model_explainability_wrappers.base import ModelExplainabilityWrapper
+from torchxai.metrics._utils.common import _reduce_tensor_with_indices_non_deterministic
 
 
 def _unwrap_model(model):
@@ -19,3 +21,14 @@ def _get_first_layer(module, name=None):
 
 def _get_model_forward_fn(model):
     return _unwrap_model(model).forward
+
+
+def _extract_feature_group_explanations(
+    explanation: torch.Tensor, feature_mask: torch.Tensor
+):
+
+    assert explanation.shape == feature_mask.shape and explanation.shape[0] == 1
+    reduced_explanation, _ = _reduce_tensor_with_indices_non_deterministic(
+        explanation.flatten(), (feature_mask - feature_mask.min()).flatten()
+    )
+    return reduced_explanation

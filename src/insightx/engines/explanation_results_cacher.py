@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, List, Mapping
+from typing import List, Mapping
 
 import torch
 from atria.core.constants import DataKeys
 from atria.core.utilities.logging import get_logger
 from atria.core.utilities.typing import BatchDict
-from insightx.utilities.containers import ExplanationModelOutput
+from insightx.utilities.containers import ExplanationStepMetadata, ExplanationStepOutput
 from insightx.utilities.h5io import HFSampleSaver
 
 logger = get_logger(__name__)
@@ -54,11 +54,10 @@ class ExplanationResultsCacher:
     def batch_metadata_exists(self, batch) -> bool:
         return all([self.metadata_exists(key) for key in batch["__key__"]])
 
-    def _save_metadata(
+    def save_metadata(
         self,
         batch: Mapping[str, torch.Tensor],
-        output: ExplanationModelOutput,
-        dataset_labels: Any = None,
+        explanation_step_metadata: ExplanationStepMetadata,
     ) -> None:
         with HFSampleSaver(self.metadata_file_path) as hfio:
             # get sample keys
@@ -68,8 +67,12 @@ class ExplanationResultsCacher:
                 sample_key = batch["__key__"][batch_idx]
 
                 # store dataset labels
-                if dataset_labels is not None:
-                    hfio.save("dataset_labels", dataset_labels, sample_key)
+                if explanation_step_metadata.dataset_labels is not None:
+                    hfio.save(
+                        "dataset_labels",
+                        explanation_step_metadata.dataset_labels,
+                        sample_key,
+                    )
 
                 # store ground truth labels
                 for key in [
@@ -106,7 +109,7 @@ class ExplanationResultsCacher:
                 for (
                     input_key,
                     feature_masks_per_sample,
-                ) in output.explainer_args.feature_masks.items():
+                ) in explanation_step_metadata.explainer_args.feature_masks.items():
                     hfio.save(
                         f"feature_masks_{input_key}",
                         feature_masks_per_sample[batch_idx].detach().cpu().numpy(),
@@ -117,7 +120,7 @@ class ExplanationResultsCacher:
                 for (
                     input_key,
                     baselines_per_sample,
-                ) in output.explainer_args.baselines.items():
+                ) in explanation_step_metadata.explainer_args.baselines.items():
                     if baselines_per_sample is not None:
                         hfio.save(
                             f"baselines_{input_key}",
@@ -128,31 +131,31 @@ class ExplanationResultsCacher:
                 # save total feature groups
                 hfio.save(
                     "total_features",
-                    output.explainer_args.total_features,
+                    explanation_step_metadata.explainer_args.total_features,
                     sample_key,
                 )
 
                 # save frozen features
                 hfio.save(
                     "frozen_features",
-                    output.explainer_args.frozen_features[batch_idx]
+                    explanation_step_metadata.explainer_args.frozen_features[batch_idx]
                     .detach()
                     .cpu()
                     .numpy(),
                     sample_key,
                 )
                 # store predicted or explanation target labels
-                assert len(output.target) == batch_size, (
+                assert len(explanation_step_metadata.target) == batch_size, (
                     f"Expected target to have the same length as the batch size, "
-                    f"but got {len(output.target)} and {batch_size}"
+                    f"but got {len(explanation_step_metadata.target)} and {batch_size}"
                 )
-                assert len(output.model_outputs) == batch_size, (
+                assert len(explanation_step_metadata.model_outputs) == batch_size, (
                     f"Expected model outputs to have the same length as the batch size, "
-                    f"but got {len(output.model_outputs)} and {batch_size}"
+                    f"but got {len(explanation_step_metadata.model_outputs)} and {batch_size}"
                 )
 
-                target = output.target[batch_idx]
-                model_output = output.model_outputs[batch_idx]
+                target = explanation_step_metadata.target[batch_idx]
+                model_output = explanation_step_metadata.model_outputs[batch_idx]
                 target = (
                     target.detach().cpu().numpy()
                     if isinstance(target, torch.Tensor)
@@ -253,17 +256,24 @@ class ExplanationResultsCacher:
         return explanations, reduced_explanations
 
     def save_results(
-        self, batch: BatchDict, output: ExplanationModelOutput, dataset_labels: Any
+        self,
+        batch: BatchDict,
+        explanation_step_output: ExplanationStepOutput,
     ) -> None:
-        self._save_metadata(batch, output, dataset_labels=dataset_labels)
+        self.save_metadata(
+            batch,
+            explanation_step_metadata=explanation_step_output.metadata,
+        )
         if self._cache_full_explanations:
-            if output.explanations is not None:
+            if explanation_step_output.explanations is not None:
                 self._save_explanations(
-                    self.explanation_file_path, output.explanations, batch
+                    self.explanation_file_path,
+                    explanation_step_output.explanations,
+                    batch,
                 )
-        if output.reduced_explanations is not None:
+        if explanation_step_output.reduced_explanations is not None:
             self._save_explanations(
                 self.reduced_explanation_file_path,
-                output.reduced_explanations,
+                explanation_step_output.reduced_explanations,
                 batch,
             )

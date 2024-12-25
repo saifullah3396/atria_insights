@@ -1,18 +1,10 @@
-from functools import wraps
 from typing import Dict
 
 import torch
 from dacite import Any
 from insightx.utilities.containers import ExplainerArguments
 from pyparsing import abstractmethod
-
-
-def forward_wrapper(forward_func):
-    @wraps(forward_func)
-    def inner(*args, **kwargs):
-        return forward_func(*args, **kwargs)
-
-    return inner
+from torch import nn
 
 
 class ModelExplainabilityWrapper(torch.nn.Module):
@@ -20,6 +12,8 @@ class ModelExplainabilityWrapper(torch.nn.Module):
         super().__init__()
         self._model = model
         self._is_explainable = False
+        self._is_output_explainable = False
+        self.softmax = nn.Softmax(dim=-1)
 
     @property
     def model(self) -> torch.nn.Module:
@@ -27,22 +21,22 @@ class ModelExplainabilityWrapper(torch.nn.Module):
 
     def prepare_explainer_args(self, *args, **kwargs) -> ExplainerArguments:
         with torch.no_grad():
-            inputs = self._prepare_explainable_inputs(*args, **kwargs)
-            baselines = self._prepare_baselines_from_inputs(*args, **kwargs)
-            metric_baselines = self._prepare_metric_baselines_from_inputs(
+            inputs = self.prepare_explainable_inputs(*args, **kwargs)
+            baselines = self.prepare_baselines_from_inputs(*args, **kwargs)
+            metric_baselines = self.prepare_metric_baselines_from_inputs(
                 *args, **kwargs
             )
-            feature_masks, total_features, frozen_features = self._prepare_feature_masks_from_inputs(
-                *args, **kwargs
+            feature_masks, total_features, frozen_features = (
+                self.prepare_feature_masks_from_inputs(*args, **kwargs)
             )
-            feature_masks = self._expand_feature_masks_to_explainable_inputs(
+            feature_masks = self.expand_feature_masks_to_explainable_inputs(
                 inputs, feature_masks
             )
-            additional_forward_kwargs = self._prepare_additional_forward_kwargs(
+            additional_forward_kwargs = self.prepare_additional_forward_kwargs(
                 *args, **kwargs
             )
-            constant_shifts = self._prepare_constant_shifts(*args, **kwargs)
-            input_layer_names = self._prepare_input_layer_names()
+            constant_shifts = self.prepare_constant_shifts(*args, **kwargs)
+            input_layer_names = self.prepare_input_layer_names()
 
             return ExplainerArguments(
                 inputs=inputs,
@@ -61,44 +55,46 @@ class ModelExplainabilityWrapper(torch.nn.Module):
             )
 
     @abstractmethod
-    def _prepare_explainable_inputs(self, *args, **kwargs) -> Dict[str, torch.Tensor]:
+    def prepare_explainable_inputs(self, *args, **kwargs) -> Dict[str, torch.Tensor]:
         pass
 
     @abstractmethod
-    def _prepare_baselines_from_inputs(
+    def prepare_baselines_from_inputs(self, *args, **kwargs) -> Dict[str, torch.Tensor]:
+        pass
+
+    def prepare_metric_baselines_from_inputs(
+        self, *args, **kwargs
+    ) -> Dict[str, torch.Tensor]:
+        return self.prepare_baselines_from_inputs(*args, **kwargs)
+
+    @abstractmethod
+    def prepare_feature_masks_from_inputs(
         self, *args, **kwargs
     ) -> Dict[str, torch.Tensor]:
         pass
 
-    def _prepare_metric_baselines_from_inputs(
-        self, *args, **kwargs
-    ) -> Dict[str, torch.Tensor]:
-        return self._prepare_baselines_from_inputs(*args, **kwargs)
-
     @abstractmethod
-    def _prepare_feature_masks_from_inputs(
-        self, *args, **kwargs
-    ) -> Dict[str, torch.Tensor]:
+    def prepare_additional_forward_kwargs(self, *args, **kwargs) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    def _prepare_additional_forward_kwargs(self, *args, **kwargs) -> Dict[str, Any]:
-        pass
-
-    @abstractmethod
-    def _expand_feature_masks_to_explainable_inputs(
+    def expand_feature_masks_to_explainable_inputs(
         self, *args, **kwargs
     ) -> ExplainerArguments:
         pass
 
-    def _prepare_constant_shifts(self, *args, **kwargs) -> Dict[str, torch.Tensor]:
+    def prepare_constant_shifts(self, *args, **kwargs) -> Dict[str, torch.Tensor]:
         pass
 
-    def _prepare_input_layer_names(self) -> Dict[str, str]:
+    def prepare_input_layer_names(self) -> Dict[str, str]:
         pass
 
-    def toggle_explainability(self, convert_to_explainable: bool = True) -> Any:
-        if convert_to_explainable:
+    def toggle_explainability(
+        self,
+        convert_model_to_explainable: bool = True,
+        convert_output_to_explainable: bool = False,
+    ) -> Any:
+        if convert_model_to_explainable:
             if not self._is_explainable:
                 self.patch_forward_for_explainability()
                 self._is_explainable = True
@@ -107,6 +103,8 @@ class ModelExplainabilityWrapper(torch.nn.Module):
                 self.restore_forward()
                 self._is_explainable = False
 
+        self._is_output_explainable = convert_output_to_explainable
+
     def patch_forward_for_explainability(self, **kwargs) -> Any:
         pass
 
@@ -114,4 +112,11 @@ class ModelExplainabilityWrapper(torch.nn.Module):
         pass
 
     def forward(self, *args, **kwargs):
-        return self.model(*args, **kwargs)
+        model_outputs = self._model(*args, **kwargs)
+        logits = (
+            model_outputs.logits if hasattr(model_outputs, "logits") else model_outputs
+        )
+        if self._is_output_explainable:
+            return self.softmax(logits)
+        else:
+            return logits

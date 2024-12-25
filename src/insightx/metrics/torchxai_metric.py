@@ -11,7 +11,7 @@ from ignite.metrics import Metric
 from ignite.metrics.metric import Metric, reinit__is_reduced, sync_all_reduce
 from ignite.utils import apply_to_tensor
 from insightx.engines.metrics_cacher import MetricsCacher
-from insightx.utilities.containers import ExplanationModelOutput
+from insightx.utilities.containers import ExplanationStepOutput
 from torch.cuda.amp import autocast
 from torchxai.explainers.explainer import Explainer
 
@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 def default_output_transform(output):
     assert isinstance(
-        output, ExplanationModelOutput
+        output, ExplanationStepOutput
     ), "The output of the model must be an instance of ExplanationModelOutput, "
     return output
 
@@ -60,7 +60,7 @@ class TorchXAIMetric(Metric):
 
     def _prepare_metric_kwargs(
         self,
-        output: ExplanationModelOutput,
+        output: ExplanationStepOutput,
     ):
         explainer = self._explainer(self._forward_func)
 
@@ -221,7 +221,7 @@ class TorchXAIMetric(Metric):
             return metric_kwargs
 
     @reinit__is_reduced
-    def update(self, output: ExplanationModelOutput):
+    def update(self, output: ExplanationStepOutput):
         if output.explanations is None:
             return
 

@@ -9,7 +9,6 @@ from atria.core.utilities.logging import get_logger
 from atria.core.utilities.typing import BatchDict
 from atria.models.task_modules.classification.image import ImageClassificationModule
 from ignite.contrib.handlers import TensorboardLogger
-
 from insightx.model_explainability_wrappers.base import ModelExplainabilityWrapper
 from insightx.task_modules.explanation_task_module import ExplanationTaskModule
 from insightx.utilities.containers import ExplainerArguments
@@ -58,17 +57,17 @@ class ImageClassificationExplanationModule(
         required_keys += [DataKeys.IMAGE]
         return required_keys
 
-    def _prepare_explainer_arguments(
+    def prepare_explainer_arguments(
         self, batch: BatchDict, **kwargs
     ) -> ExplainerArguments:
         # prepare inputs for explainable model
         return self.torch_model.prepare_explainer_args(image=batch[DataKeys.IMAGE])
 
-    def _prepare_train_baselines(self, batch: BatchDict, **kwargs) -> torch.Tensor:
+    def prepare_train_baselines(self, batch: BatchDict, **kwargs) -> torch.Tensor:
         # prepare inputs for explainable model
         return self.torch_model._prepare_explainable_inputs(image=batch[DataKeys.IMAGE])
 
-    def _prepare_target(self, batch: BatchDict, explainer_args: ExplainerArguments):
+    def prepare_target(self, batch: BatchDict, explainer_args: ExplainerArguments):
         with torch.no_grad():
             if not self._explainable_model_output_validated:
                 self._torch_model.toggle_explainability(False)
@@ -94,7 +93,7 @@ class ImageClassificationExplanationModule(
                 )
                 return explainable_model_outputs.argmax(dim=-1)
 
-    def _reduce_explanations(
+    def reduce_explanations(
         self,
         batch: BatchDict,
         explainer_args: ExplainerArguments,

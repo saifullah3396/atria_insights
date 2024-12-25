@@ -20,32 +20,32 @@ class ImageClassificationExplainabilityWrapper(ModelExplainabilityWrapper):
     def model(self) -> torch.nn.Module:
         return self._model
 
-    def _prepare_explainable_inputs(
+    def prepare_explainable_inputs(
         self, image: torch.Tensor
     ) -> Dict[str, torch.Tensor]:
         return {"image": image}
 
-    def _prepare_baselines_from_inputs(
+    def prepare_baselines_from_inputs(
         self, image: torch.Tensor
     ) -> Dict[str, torch.Tensor]:
         return {"image": torch.zeros_like(image)}
 
-    def _prepare_feature_masks_from_inputs(
+    def prepare_feature_masks_from_inputs(
         self, image: torch.Tensor
     ) -> ExplainerArguments:
         if self._segmentation_fn is not None:
             return {"image": self._segmentation_fn(image)}
 
-    def _expand_feature_masks_to_explainable_inputs(
+    def expand_feature_masks_to_explainable_inputs(
         self, inputs: Dict[str, torch.Tensor], feature_masks: ExplainerArguments
     ) -> ExplainerArguments:
         return {"image": feature_masks["image"].expand_as(inputs["image"])}
 
-    def _prepare_constant_shifts(self, image: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def prepare_constant_shifts(self, image: torch.Tensor) -> Dict[str, torch.Tensor]:
         # constant shifts are used to shift the input image for input invarince score computation
         return {"image": torch.ones_like(image[0], device=image.device).unsqueeze(0)}
 
-    def _prepare_input_layer_names(self) -> Dict[str, str]:
+    def prepare_input_layer_names(self) -> Dict[str, str]:
         first_layer = _get_first_layer(self._model)
         return {"image": "_model" + "." + first_layer[0]}
 
