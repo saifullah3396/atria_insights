@@ -8,13 +8,14 @@ from atria.core.training.utilities.progress_bar import AtriaProgressBar
 from atria.core.utilities.common import _get_required_args
 from atria.core.utilities.logging import get_logger
 from ignite.engine import Engine
+from torchxai.explainers.explainer import Explainer
+
 from insightx.engines.explanation_results_cacher import ExplanationResultsCacher
 from insightx.engines.utilities import _explainer_forward, _map_inputs_to_ordered_dict
 from insightx.model_explainability_wrappers.base import ModelExplainabilityWrapper
 from insightx.task_modules.explanation_task_module import ExplanationTaskModule
 from insightx.task_modules.utilities import _get_model_forward_fn
 from insightx.utilities.containers import ExplanationStepMetadata, ExplanationStepOutput
-from torchxai.explainers.explainer import Explainer
 
 logger = get_logger(__name__)
 
@@ -33,6 +34,7 @@ class ExplanationStepUpdate:
         step_update_validated: bool = True,
         device: torch.device = torch.device("cpu"),
         stage: str = "Explain",
+        compute_multi_target_iteratively: bool = False,
     ):
         self._engine = engine
         self._task_module = task_module
@@ -45,8 +47,13 @@ class ExplanationStepUpdate:
         self._step_update_validated = step_update_validated
         self._device = device
         self._stage = stage
+        self._compute_multi_target_iteratively = compute_multi_target_iteratively
 
         # computed outputs
+        self._explainer_args = None
+        self._target = None
+        self._target_word_ids = None
+        self._model_outputs = None
         self._step_metadata = None
         self._explanations = None
         self._reduced_explanations = None
@@ -101,11 +108,21 @@ class ExplanationStepUpdate:
             inputs=self._explainer_args.inputs,
             additional_forward_kwargs=self._explainer_args.additional_forward_kwargs,
         )
+        self._model_outputs = (
+            self._model_outputs.logits
+            if hasattr(self._model_outputs, "logits")
+            else self._model_outputs
+        )
         if not self._step_update_validated:
             self._task_module.torch_model.toggle_explainability(
                 convert_model_to_explainable=False, convert_output_to_explainable=False
             )
             standard_model_outputs = self._task_module._model_forward(self._batch)
+            standard_model_outputs = (
+                standard_model_outputs.logits
+                if hasattr(standard_model_outputs, "logits")
+                else standard_model_outputs
+            )
             self._task_module.torch_model.toggle_explainability(
                 convert_model_to_explainable=True, convert_output_to_explainable=False
             )
@@ -118,11 +135,17 @@ class ExplanationStepUpdate:
             )
 
     def _prepare_target(self):
-        self._target = self._task_module.prepare_target(
+        target_outputs = self._task_module.prepare_target(
             batch=self._batch,
             explainer_args=self._explainer_args,
             model_outputs=self._model_outputs,
         )
+
+        if isinstance(target_outputs, dict):
+            self._target = target_outputs["target"]
+            self._target_word_ids = target_outputs["target_word_ids"]
+        else:
+            self._target = target_outputs
 
     def _prepare_explanation_step_metadata(self):
         # prepare inputs for explanation
@@ -135,10 +158,15 @@ class ExplanationStepUpdate:
         self._prepare_target()
 
         # prepare metadata
+        assert all(
+            x is not None
+            for x in [self._explainer_args, self._target, self._model_outputs]
+        ), f"Explainer arguments, target and model outputs must be prepared before saving metadata."
         self._step_metadata = ExplanationStepMetadata(
             sample_keys=self._batch["__key__"],
             explainer_args=self._explainer_args,
             target=self._target,
+            target_word_ids=self._target_word_ids,
             model_outputs=self._model_outputs,
             dataset_labels=self._task_module._dataset_metadata.labels,
         )
@@ -151,36 +179,31 @@ class ExplanationStepUpdate:
         self._explanation_results_cacher.save_metadata(
             batch=self._batch,
             explanation_step_metadata=self._step_metadata,
+            file_suffix=self._explainer.func.__name__,
         )
         return explainer_output
 
-    def _save_step_outputs(self):
+    def _save_step_explanations(self):
         assert (
-            self._step_metadata is not None
-            and self._explanations is not None
-            and self._reduced_explanations is not None
+            self._explanations is not None and self._reduced_explanations is not None
         ), "Step metadata and outputs must be prepared before saving."
-        self._explanation_results_cacher.save_results(
+        self._explanation_results_cacher.save_explanations(
             batch=self._batch,
-            explanation_step_output=self._prepare_explanation_step_output(),
+            explanations=self._explanations,
+            reduced_explanations=self._reduced_explanations,
         )
 
     def _prepare_explanation_step_output(self):
         return ExplanationStepOutput(
             explanations=self._explanations,
             reduced_explanations=self._reduced_explanations,
-            metadata=ExplanationStepMetadata(
-                sample_keys=self._batch["__key__"],
-                explainer_args=self._explainer_args,
-                target=self._target,
-                model_outputs=self._model_outputs,
-            ),
+            metadata=self._step_metadata,
         )
 
     def _reorder_explanations(self, explanations: Dict[str, torch.Tensor]):
         if explanations is not None:
             return _map_inputs_to_ordered_dict(
-                (explanations, self._explainer_args.inputs.keys())
+                explanations, self._explainer_args.inputs.keys()
             )
 
     def _prepare_reduced_explanations(self, explanations: Dict[str, torch.Tensor]):
@@ -223,10 +246,6 @@ class ExplanationStepUpdate:
         )
 
     def _prepare_explanations(self):
-        self._task_module.torch_model.toggle_explainability(
-            convert_model_to_explainable=True, convert_output_to_explainable=True
-        )
-
         # initialize explainer
         explainer = self._initialize_explainer_instance()
 
@@ -241,6 +260,7 @@ class ExplanationStepUpdate:
             explainer=explainer,
             explainer_args=self._explainer_args,
             target=self._target,
+            compute_multi_target_iteratively=self._compute_multi_target_iteratively,
         )
 
         # generate reduced explanations
@@ -265,6 +285,10 @@ class ExplanationStepUpdate:
             self._save_step_metadata()
             return self._prepare_explanation_step_output()
 
+        self._task_module.torch_model.toggle_explainability(
+            convert_model_to_explainable=True, convert_output_to_explainable=True
+        )
+
         # load explanations from cache if available
         if self._explanation_results_cacher is not None:
             cached_explanations_exist = self._prepare_explanations_from_cache()
@@ -277,7 +301,8 @@ class ExplanationStepUpdate:
 
         # save explanations to cache
         if self._explanation_results_cacher is not None:
-            self._save_step_outputs()
+            self._save_step_metadata()
+            self._save_step_explanations()
 
         # set validation flag
         self._step_update_validated = True
@@ -298,6 +323,7 @@ class ExplanationStep(BaseEngineStep):
         progress_bar: Optional[AtriaProgressBar] = None,
         non_blocking_tensor_conv: bool = False,
         with_amp: bool = False,
+        compute_multi_target_iteratively: bool = False,
     ):
         self._task_module = task_module
         self._explainer = explainer
@@ -309,6 +335,7 @@ class ExplanationStep(BaseEngineStep):
         self._non_blocking_tensor_conv = non_blocking_tensor_conv
         self._with_amp = with_amp
         self._step_update_validated = False
+        self._compute_multi_target_iteratively = compute_multi_target_iteratively
 
     @property
     def stage(self) -> str:
@@ -365,4 +392,5 @@ class ExplanationStep(BaseEngineStep):
                     step_update_validated=self._step_update_validated,
                     device=self._device,
                     stage=self.stage,
+                    compute_multi_target_iteratively=self._compute_multi_target_iteratively,
                 )()

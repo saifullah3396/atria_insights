@@ -12,12 +12,13 @@ from atria.core.utilities.logging import get_logger
 from ignite.engine import Engine
 from ignite.handlers import TensorboardLogger
 from ignite.metrics import Metric
+from torch.utils.data import DataLoader
+from torchxai.explainers.explainer import Explainer
+
 from insightx.engines.explanation_results_cacher import ExplanationResultsCacher
 from insightx.engines.explanation_step import ExplanationStep
 from insightx.engines.metrics_cacher import MetricsCacher
 from insightx.task_modules.explanation_task_module import ExplanationTaskModule
-from torch.utils.data import DataLoader
-from torchxai.explainers.explainer import Explainer
 
 logger = get_logger(__name__)
 
@@ -41,7 +42,9 @@ class ExplanationEngine(AtriaEngine):
         test_run: bool = False,
         force_recompute: bool = False,
         cache_full_explanations: bool = False,
+        cache_reduced_explanations: bool = False,
         save_metadata_only: bool = False,
+        iterative_computation: bool = False,
     ):
         _validate_partial_class(engine_step, ExplanationStep, "engine_step")
         self._explainer = explainer
@@ -50,7 +53,9 @@ class ExplanationEngine(AtriaEngine):
         self._metrics_cacher = None
         self._force_recompute = force_recompute
         self._cache_full_explanations = cache_full_explanations
+        self._cache_reduced_explanations = cache_reduced_explanations
         self._save_metadata_only = save_metadata_only
+        self._iterative_computation = iterative_computation
         super().__init__(
             output_dir=output_dir,
             task_module=task_module,
@@ -79,6 +84,7 @@ class ExplanationEngine(AtriaEngine):
             / self._explainer.func.__name__
             / f"{self._explainer.func.__name__}.h5",
             cache_full_explanations=self._cache_full_explanations,
+            cache_reduced_explanations=self._cache_reduced_explanations,
         )
 
         # initialize metrics cacher
@@ -116,6 +122,7 @@ class ExplanationEngine(AtriaEngine):
             explanation_results_cacher=self._explanation_results_cacher,
             progress_bar=self._progress_bar,
             save_metadata_only=self._save_metadata_only,
+            iterative_computation=self._iterative_computation,
         )
 
     def _configure_metrics(self, engine: Engine) -> None:
@@ -160,13 +167,20 @@ class ExplanationEngine(AtriaEngine):
             )
             explanations_exists = (
                 self._explanation_results_cacher.batch_explanations_exists(
-                    engine.state.batch
+                    engine.state.batch,
+                    check_reduced_explanations=not self._cache_full_explanations,
                 )
             )
             metrics_exist = self._metrics_cacher.metrics_exist(
                 engine.state.batch, self._metrics
             )
-            if metadata_exists and explanations_exists and metrics_exist:
+            if self._cache_full_explanations or self._cache_reduced_explanations:
+                batch_done = metadata_exists and explanations_exists and metrics_exist
+            else:
+                # we do not check explanations in case we don't want to save it. This means it doesn't need to
+                # be computed again if metrics are done
+                batch_done = metadata_exists and metrics_exist
+            if batch_done:
                 engine.state.skip_batch = True
             else:
                 engine.state.skip_batch = False

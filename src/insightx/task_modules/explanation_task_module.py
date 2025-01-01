@@ -75,7 +75,9 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
             "prepare_explainer_arguments method must be implemented"
         )
 
-    def prepare_train_baselines(self, batch: BatchDict) -> torch.Tensor:
+    def prepare_train_baselines(
+        self, batch: BatchDict, **kwargs
+    ) -> Dict[str, torch.Tensor]:
         raise NotImplementedError("prepare_train_baselines method must be implemented")
 
     def prepare_target(
@@ -83,7 +85,7 @@ class ExplanationTaskModule(AtriaTaskModule, metaclass=ABCMeta):
         batch: BatchDict,
         explainer_args: ExplainerArguments,
         model_outputs: torch.Tensor,
-    ) -> Union[torch.Tensor, List[torch.Tensor]]:
+    ) -> Union[torch.Tensor, Dict[str, Union[List[List[int]], torch.Tensor]]]:
         raise NotImplementedError("prepare_target method must be implemented")
 
     def reduce_explanations(

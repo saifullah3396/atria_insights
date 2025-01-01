@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Mapping
+from typing import Dict, List, Mapping
 
 import torch
 from atria.core.constants import DataKeys
 from atria.core.utilities.logging import get_logger
 from atria.core.utilities.typing import BatchDict
-from insightx.utilities.containers import ExplanationStepMetadata, ExplanationStepOutput
+
+from insightx.utilities.containers import ExplanationStepMetadata
 from insightx.utilities.h5io import HFSampleSaver
 
 logger = get_logger(__name__)
@@ -18,9 +19,13 @@ class ExplanationResultsCacher:
         self,
         output_file_path: Path,
         cache_full_explanations: bool = False,
+        cache_reduced_explanations: bool = False,
+        save_fp16: bool = False,
     ) -> None:
         self._output_file_path = output_file_path
         self._cache_full_explanations = cache_full_explanations
+        self._cache_reduced_explanations = cache_reduced_explanations
+        self._save_fp16 = save_fp16
 
     @property
     def explanation_file_path(self) -> Path:
@@ -34,15 +39,31 @@ class ExplanationResultsCacher:
     def metadata_file_path(self) -> Path:
         return self._output_file_path.parent.parent / "metadata.h5"
 
-    def explanation_exists(self, sample_key: str) -> bool:
-        if not self.explanation_file_path.exists():
+    def explanation_exists(
+        self, sample_key: str, check_reduced_explanations: bool = False
+    ) -> bool:
+        file_path = (
+            self.reduced_explanation_file_path
+            if check_reduced_explanations
+            else self.explanation_file_path
+        )
+        if not file_path.exists():
             return False
 
-        with HFSampleSaver(self.explanation_file_path, mode="r") as hfio:
+        with HFSampleSaver(file_path, mode="r") as hfio:
             return hfio.sample_exists(sample_key)
 
-    def batch_explanations_exists(self, batch) -> bool:
-        return all([self.explanation_exists(key) for key in batch["__key__"]])
+    def batch_explanations_exists(
+        self, batch, check_reduced_explanations: bool = False
+    ) -> bool:
+        return all(
+            [
+                self.explanation_exists(
+                    key, check_reduced_explanations=check_reduced_explanations
+                )
+                for key in batch["__key__"]
+            ]
+        )
 
     def metadata_exists(self, sample_key: str) -> bool:
         if not self.metadata_file_path.exists():
@@ -58,8 +79,14 @@ class ExplanationResultsCacher:
         self,
         batch: Mapping[str, torch.Tensor],
         explanation_step_metadata: ExplanationStepMetadata,
+        file_suffix: str = None,
     ) -> None:
-        with HFSampleSaver(self.metadata_file_path) as hfio:
+        file_path = (
+            self.metadata_file_path.with_suffix(f".{file_suffix}.h5")
+            if file_suffix is not None
+            else self.metadata_file_path
+        )
+        with HFSampleSaver(file_path) as hfio:
             # get sample keys
             batch_size = len(batch["__key__"])
             for batch_idx in range(len(batch["__key__"])):
@@ -93,6 +120,7 @@ class ExplanationResultsCacher:
                     DataKeys.IMAGE_FILE_PATH,
                     DataKeys.WORDS,
                     DataKeys.WORD_BBOXES,
+                    DataKeys.WORD_IDS,
                 ]:
                     if key in batch:
                         hfio.save(
@@ -174,6 +202,11 @@ class ExplanationResultsCacher:
                     sample_key,
                 )
                 hfio.save(
+                    "target_word_ids",
+                    explanation_step_metadata.target_word_ids[batch_idx],
+                    sample_key,
+                )
+                hfio.save(
                     "model_outputs",
                     model_output,
                     sample_key,
@@ -182,7 +215,7 @@ class ExplanationResultsCacher:
     def _save_explanations(
         self,
         file_path: Path,
-        explanations: torch.Tensor,
+        explanations: Dict[str, torch.Tensor],
         batch: Mapping[str, torch.Tensor],
     ) -> None:
         with HFSampleSaver(file_path) as hfio:
@@ -190,9 +223,18 @@ class ExplanationResultsCacher:
                 for sample_key, explanation in zip(
                     batch["__key__"], explanations_per_sample
                 ):
+                    if explanation is not None:
+                        explanation = (
+                            explanation.detach().cpu().half().numpy()
+                            if self._save_fp16
+                            else explanation.detach().cpu().numpy()
+                        )
+                    else:
+                        # this is just a place holder if there is no value for explanation
+                        explanation = -1000
                     hfio.save(
                         input_key,
-                        explanation.detach().cpu().numpy(),
+                        explanation,
                         sample_key,
                     )
 
@@ -255,25 +297,24 @@ class ExplanationResultsCacher:
         )
         return explanations, reduced_explanations
 
-    def save_results(
+    def save_explanations(
         self,
         batch: BatchDict,
-        explanation_step_output: ExplanationStepOutput,
+        explanations: Dict[str, torch.Tensor],
+        reduced_explanations: Dict[str, torch.Tensor],
     ) -> None:
-        self.save_metadata(
-            batch,
-            explanation_step_metadata=explanation_step_output.metadata,
-        )
         if self._cache_full_explanations:
-            if explanation_step_output.explanations is not None:
+            if explanations is not None:
                 self._save_explanations(
                     self.explanation_file_path,
-                    explanation_step_output.explanations,
+                    explanations,
                     batch,
                 )
-        if explanation_step_output.reduced_explanations is not None:
-            self._save_explanations(
-                self.reduced_explanation_file_path,
-                explanation_step_output.reduced_explanations,
-                batch,
-            )
+
+        if self._cache_reduced_explanations:
+            if reduced_explanations is not None:
+                self._save_explanations(
+                    self.reduced_explanation_file_path,
+                    reduced_explanations,
+                    batch,
+                )
