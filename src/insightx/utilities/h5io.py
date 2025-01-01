@@ -3,6 +3,9 @@ from __future__ import annotations
 import h5py
 import numpy as np
 import torch
+from atria.core.utilities.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class HFDataset:
@@ -59,10 +62,11 @@ class HFDataset:
 
 
 class HFSampleSaver:
-    def __init__(self, filepath: str, mode="a"):
+    def __init__(self, filepath: str, mode="a", overwrite_if_exists: bool = True):
         self.filepath = filepath
         self.mode = mode
         self.hf = None
+        self.overwrite_if_exists = overwrite_if_exists
 
     def __enter__(self) -> HFSampleSaver:
         self.hf = h5py.File(self.filepath, self.mode)
@@ -110,14 +114,30 @@ class HFSampleSaver:
                     compression="gzip",
                 )
             else:
-                self.hf[sample_key].create_dataset(key, data=data)
+                try:
+                    self.hf[sample_key].create_dataset(key, data=data)
+                except Exception as e:
+                    logger.exception(
+                        f"Exception raised while creating dataset for data={key}: {data}"
+                    )
+                    exit()
         else:
-            # Create a dataset for the key
-            if isinstance(data, np.ndarray):
-                # Overwrite the existing data
-                self.hf[sample_key][key][0] = data
+            if self.overwrite_if_exists:
+                logger.warning(
+                    f"Data already exists on given key = {sample_key}/{key}. "
+                    "Overwriting as overwrite_if_exists=True..."
+                )
+                # Create a dataset for the key
+                if isinstance(data, np.ndarray):
+                    # Overwrite the existing data
+                    self.hf[sample_key][key][0] = data
+                else:
+                    self.hf[sample_key][key][...] = data
             else:
-                self.hf[sample_key][key][...] = data
+                logger.warning(
+                    f"Data already exists on given key = {key}. "
+                    "If you want to overwrite it set overwrite_if_exists=True."
+                )
 
     def load(self, key: str, sample_key: str):
         if sample_key not in self.hf or key not in self.hf[sample_key]:
