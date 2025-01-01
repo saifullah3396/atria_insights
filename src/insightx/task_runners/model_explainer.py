@@ -7,17 +7,17 @@ from atria.core.data.data_modules.atria_data_module import AtriaDataModule
 from atria.core.training.engines.evaluation import TestEngine
 from atria.core.training.utilities.initialization import (
     _initialize_torch,
+    reset_random_seeds,
 )
 from atria.core.utilities.logging import get_logger
 from atria.core.utilities.pydantic_parser import atria_pydantic_parser
 from hydra.core.hydra_config import HydraConfig
-from omegaconf import DictConfig
-
 from insightx.engines.explanation_engine import ExplanationEngine
 from insightx.engines.train_baselines_generation_engine import (
     TrainBaselinesGenerationEngine,
 )
 from insightx.task_modules.explanation_task_module import ExplanationTaskModule
+from omegaconf import DictConfig
 
 
 class ModelExplainer:
@@ -92,6 +92,9 @@ class ModelExplainer:
             max_train_baselines=self._max_train_baselines,
         )
         train_baselines = train_baselines_generation_engine.run()
+
+        # Reset the seed again before running explainer
+        reset_random_seeds(self._seed)
 
         # initilize the test engine from partial
         self._explanation_engine = self._explanation_engine(
