@@ -44,7 +44,7 @@ class ExplanationEngine(AtriaEngine):
         cache_full_explanations: bool = False,
         cache_reduced_explanations: bool = False,
         save_metadata_only: bool = False,
-        iterative_computation: bool = False,
+        compute_multi_target_iteratively: bool = False,
     ):
         _validate_partial_class(engine_step, ExplanationStep, "engine_step")
         self._explainer = explainer
@@ -55,7 +55,7 @@ class ExplanationEngine(AtriaEngine):
         self._cache_full_explanations = cache_full_explanations
         self._cache_reduced_explanations = cache_reduced_explanations
         self._save_metadata_only = save_metadata_only
-        self._iterative_computation = iterative_computation
+        self._compute_multi_target_iteratively = compute_multi_target_iteratively
         super().__init__(
             output_dir=output_dir,
             task_module=task_module,
@@ -122,7 +122,7 @@ class ExplanationEngine(AtriaEngine):
             explanation_results_cacher=self._explanation_results_cacher,
             progress_bar=self._progress_bar,
             save_metadata_only=self._save_metadata_only,
-            iterative_computation=self._iterative_computation,
+            compute_multi_target_iteratively=self._compute_multi_target_iteratively,
         )
 
     def _configure_metrics(self, engine: Engine) -> None:
