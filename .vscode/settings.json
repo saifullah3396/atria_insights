@@ -60,4 +60,17 @@
     "[yaml]": {
         "editor.defaultFormatter": "redhat.vscode-yaml"
     },
+    "python.analysis.extraPaths": [
+        "./src",
+        "../atria/src/",
+        "../atria_core/src/",
+    ],
+    "python.analysis.include": [
+        "src/**/*.py",
+        "../atria/src/**/*.py",
+        "../atria_core/src/**/*.py",
+        "../atria/src/**/*.py",
+        "tests/**/*.py",
+        "examples/**/*.py"
+    ]
 }

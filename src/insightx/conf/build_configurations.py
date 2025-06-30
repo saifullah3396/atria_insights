@@ -17,7 +17,7 @@ from insightx.explainers.config import *  # noqa
 from insightx.metrics.config import *  # noqa
 from insightx.model_explainability_wrappers.config import *  # noqa
 from insightx.task_modules.config import *  # noqa
-from insightx.task_runners.config import *  # noqa
+from insightx.task_pipelines.config import *  # noqa
 
 
 def dump_configurations(root_dir: Path, d: dict):
