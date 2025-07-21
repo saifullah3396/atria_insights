@@ -7,3 +7,4 @@ Install project requirements:
 ```
 pip install -r requirements.txt
 ```
+# atria_insights
