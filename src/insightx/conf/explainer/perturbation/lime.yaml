@@ -1,7 +1,0 @@
-_target_: torchxai.explainers._perturbation.lime.LimeExplainer
-_partial_: true
-is_multi_target: false
-internal_batch_size: 1
-n_samples: 100
-alpha: 0.01
-weight_attributions: true

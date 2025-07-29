@@ -6,8 +6,7 @@
         "**/.hg": true,
         "**/CVS": true,
         "**/**__pycache__": true,
-        "external": false, // handle contains the external submodules necessary for running the code
-        "insightx.egg-info": true
+        "**/**.venv": true,
     },
     "python.analysis.indexing": true,
     "python.analysis.autoImportCompletions": true,
@@ -24,14 +23,6 @@
     "editor.rulers": [
         120
     ],
-    "python.analysis.extraPaths": [
-        "../external/atria/src",
-        "../external/torchxai/src",
-    ],
-    "python.autoComplete.extraPaths": [
-        "../external/atria/src",
-        "../external/torchxai/src",
-    ],
     "workbench.colorCustomizations": {
         // will change the color of three dots to red
         "editorHint.foreground": "#ff0000",
@@ -40,37 +31,18 @@
     },
     "notebook.output.textLineLimit": 200,
     "notebook.output.scrolling": false,
-    // Remove Unused Python imports via bash
-    "emeraldwalk.runonsave": {
-        "commands": [
-            {
-                "match": "\\.py$",
-                "isAsync": true,
-                // Use the full path from above in case it can't find it
-                "cmd": "autoflake --in-place --ignore-init-module-imports --remove-all-unused-imports \"${file}\""
-            },
-        ]
-    },
-    "[ignore]": {
-        "editor.defaultFormatter": "foxundermoon.shell-format"
-    },
-    "[shellscript]": {
-        "editor.defaultFormatter": "foxundermoon.shell-format"
-    },
-    "[yaml]": {
-        "editor.defaultFormatter": "redhat.vscode-yaml"
-    },
     "python.analysis.extraPaths": [
         "./src",
-        "../atria/src/",
         "../atria_core/src/",
+        "../atria_models/src/",
     ],
     "python.analysis.include": [
         "src/**/*.py",
-        "../atria/src/**/*.py",
         "../atria_core/src/**/*.py",
-        "../atria/src/**/*.py",
-        "tests/**/*.py",
-        "examples/**/*.py"
-    ]
+        "../atria_models/src/**/*.py",
+    ],
+    "python.defaultInterpreterPath": "./.venv/bin/python",
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff"
+    },
 }

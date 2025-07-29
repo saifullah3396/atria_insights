@@ -1,9 +1,0 @@
-_target_: insightx.model_explainability_wrappers.classification.image.ImageClassificationExplainabilityWrapper
-_partial_: true
-defaults:
-- _self_
-segmentation_fn:
-  _target_: insightx.model_explainability_wrappers.utils.create_segmentation_fn
-  _partial_: false
-  segmentation_type: grid
-  cell_size: 16

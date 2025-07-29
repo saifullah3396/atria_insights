@@ -1,0 +1,8 @@
+_partial_: false
+model: ???
+is_multi_target: false
+internal_batch_size: 1
+n_samples: 100
+weight_attributions: true
+module: torchxai.explainers._perturbation.kernel_shap.KernelShapExplainer
+_target_: atria_insights.registry.registry_groups.ExplainerBuilder

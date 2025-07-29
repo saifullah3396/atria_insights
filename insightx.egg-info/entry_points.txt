@@ -1,2 +1,0 @@
-[console_scripts]
-insightx.explain = insightx.task_runners.model_explainer:app

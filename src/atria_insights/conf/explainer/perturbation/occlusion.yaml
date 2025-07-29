@@ -1,0 +1,8 @@
+_partial_: false
+model: ???
+sliding_window_shapes: ???
+strides: ???
+is_multi_target: false
+internal_batch_size: 1
+module: torchxai.explainers._perturbation.occlusion.OcclusionExplainer
+_target_: atria_insights.registry.registry_groups.ExplainerBuilder

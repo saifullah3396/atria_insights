@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"  # If not defined, then legacy behavior 
 
 
 [project]
-name = "insightx"
+name = "atria_insights"
 version = "0.0.0"  # REQUIRED, although can be dynamic
 description = "InsightX is a PyTorch-Ignite based framework designed for evaluating machine learning models using explainability techniques in a scalable manner."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = "==3.11.*"
 license = {file = "LICENSE.txt"}
 keywords = ["torch", "explainable-ai", "interpretability", "machine-learning", "deep-learning"]
 authors = [
@@ -35,15 +35,17 @@ classifiers = [
 ]
 
 dependencies = [
-    "autopep8==2.1.0",
-    "click>=8.0.0",
-    "hydra-core==1.3.2",
-    "omegaconf==2.3.0",
-    "pytorch-ignite==0.5.0.post2",
-    "torch==2.3.0",
-    "tqdm==4.66.4",
-    "torchxai @ git+https://github.com/saifullah3396/torchxai.git@1.0.0",
-    "atria @ git+https://git.opendfki.de/saifullah/atria.git@1.0.0"
+    # "autopep8==2.1.0",
+    # "click>=8.0.0",
+    # "hydra-core==1.3.2",
+    # "omegaconf==2.3.0",
+    # "pytorch-ignite==0.5.0.post2",
+    # "torch==2.3.0",
+    # "tqdm==4.66.4",
+    # "torchxai @ git+https://github.com/saifullah3396/torchxai.git@1.0.0",
+    # "atria @ git+https://git.opendfki.de/saifullah/atria.git@1.0.0"
+    "atria-ml",
+    "torchxai",
 ]
 
 [project.optional-dependencies]
@@ -68,6 +70,10 @@ pythonpath = [
 
 [tool.distutils.egg_info]
 egg_base = "."
+
+[tool.uv.sources]
+atria-ml = { path = "../atria_ml", editable = true }
+torchxai = { path = "../../../../../../../../../../home/saifullah/torchxai", editable = true }
 
 [project.scripts]
 "insightx.explain" = "insightx.task_runners.model_explainer:app"

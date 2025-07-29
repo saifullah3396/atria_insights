@@ -1,6 +1,0 @@
-_target_: torchxai.explainers._grad.gradient_shap.GradientShapExplainer
-_partial_: true
-n_samples: 25
-is_multi_target: false
-internal_batch_size: 1
-grad_batch_size: 64
