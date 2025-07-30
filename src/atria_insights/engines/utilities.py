@@ -83,6 +83,7 @@ def _prepare_explainer_input_kwargs(
 def _explainer_forward(
     explainer: Explainer,
     explanation_step_inputs: ExplanationStepInputs,
+    train_baselines: Dict[str, torch.Tensor],
     target: torch.Tensor,
     iterative_computation: bool = False,
 ):
