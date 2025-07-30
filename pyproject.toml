@@ -73,7 +73,7 @@ egg_base = "."
 
 [tool.uv.sources]
 atria-ml = { path = "../atria_ml", editable = true }
-torchxai = { path = "../../../../../../../../../../home/saifullah/torchxai", editable = true }
+torchxai = { git = "https://github.com/saifullah3396/torchxai.git", branch = "atria-bridge" }
 
 [project.scripts]
 "insightx.explain" = "insightx.task_runners.model_explainer:app"
