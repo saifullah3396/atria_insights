@@ -58,6 +58,7 @@ EXPLAINER_METRIC.register(
             populate_full_signature=True,
             zen_partial=False,
         ),
+        max_features_processed_per_batch=1000,
     ),
 )(TorchXAIMetric)
 
@@ -105,6 +106,7 @@ EXPLAINER_METRIC.register(
             populate_full_signature=True,
             zen_partial=False,
         ),
+        max_features_processed_per_batch=1000,
     ),
 )(TorchXAIMetric)
 EXPLAINER_METRIC.register(
@@ -131,6 +133,10 @@ EXPLAINER_METRIC.register(
         aopc,
         populate_full_signature=True,
         zen_partial=True,
+        max_features_processed_per_batch=100,
+        total_features_perturbed=100,
+        n_random_perms=5,
+        show_progress=True,
     ),
 )(TorchXAIMetric)
 
@@ -154,6 +160,7 @@ EXPLAINER_METRIC.register(
         faithfulness_estimate,
         populate_full_signature=True,
         zen_partial=True,
+        max_features_processed_per_batch=1000,
     ),
 )(TorchXAIMetric)
 
@@ -177,17 +184,31 @@ EXPLAINER_METRIC.register(
         monotonicity,
         populate_full_signature=True,
         zen_partial=True,
+        max_features_processed_per_batch=100,
+        percentage_feature_removal_per_step=0.01,  # 1% of the features will be removed together in each step
+        zero_attribution_threshold=1.0e-03,
+        zero_variance_threshold=1.0e-01,
+        use_percentage_attribution_threshold=True,
+        return_ratio=True,
+        show_progress=True,
     ),
 )(TorchXAIMetric)
 
-EXPLAINER_METRIC.register(
-    name="faithfulness/" + sensitivity_n.__name__,
-    metric_func=builds(
-        sensitivity_n,
-        populate_full_signature=True,
-        zen_partial=True,
-    ),
-)(TorchXAIMetric)
+for n_features_perturbed in [2, 4, 6]:
+    EXPLAINER_METRIC.register(
+        name="faithfulness/"
+        + sensitivity_n.__name__
+        + f"_{n_features_perturbed}_normalized",
+        metric_func=builds(
+            sensitivity_n,
+            populate_full_signature=True,
+            zen_partial=True,
+            max_examples_per_batch=100,
+            n_perturb_samples=50,
+            normalize=True,
+            n_features_perturbed=n_features_perturbed / 10,
+        ),
+    )(TorchXAIMetric)
 
 # robustness
 EXPLAINER_METRIC.register(
@@ -196,5 +217,6 @@ EXPLAINER_METRIC.register(
         sensitivity_max_and_avg,
         populate_full_signature=True,
         zen_partial=True,
+        max_examples_per_batch=100,
     ),
 )(TorchXAIMetric)

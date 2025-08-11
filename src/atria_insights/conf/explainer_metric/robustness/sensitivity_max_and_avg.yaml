@@ -8,7 +8,7 @@ metric_func:
   perturb_radius: 0.02
   n_perturb_samples: 10
   norm_ord: fro
-  max_examples_per_batch: null
+  max_examples_per_batch: 100
   is_multi_target: false
   return_dict: false
 output_transform:

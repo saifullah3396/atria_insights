@@ -11,7 +11,7 @@ class ModelInputs:
 
 
 @dataclasses.dataclass(frozen=True)
-class ExplainerInputs:
+class ExplainerStepInputs:
     model_inputs: ModelInputs = None
     baselines: Mapping[str, torch.Tensor] = None
     metric_baselines: Mapping[str, torch.Tensor] = None
@@ -30,7 +30,7 @@ class ExplainerStepOutput:
     sample_id: list[str] = None
 
     # sample inputs
-    explainer_inputs: ExplainerInputs = None
+    explainer_step_inputs: ExplainerStepInputs = None
     target: Union[torch.Tensor, List[torch.Tensor]] = None
     model_outputs: torch.Tensor = None
 

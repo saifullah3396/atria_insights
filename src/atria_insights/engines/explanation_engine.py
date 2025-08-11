@@ -14,6 +14,7 @@ from atria_insights.explainer_pipelines.atria_explainer_pipeline import (
 
 if TYPE_CHECKING:
     import torch
+    from ignite.engine import Engine
     from ignite.handlers import TensorboardLogger
     from torch.utils.data import DataLoader
 
@@ -88,6 +89,23 @@ class ExplanationEngine(AtriaEngine):
 
         return self
 
+    def _configure_metrics(self, engine: Engine) -> None:
+        from ignite.metrics.metric import RunningBatchWise
+
+        if self._explainer_pipeline.metrics is not None:
+            for (
+                metric_name,
+                metric,
+            ) in self._explainer_pipeline.metrics.items():
+                logger.info(
+                    f"Attaching metrics {metric_name}={metric.metric_name} to engine [{self.__class__.__name__}]"
+                )
+                metric.attach(
+                    engine,
+                    metric_name,
+                    usage=RunningBatchWise(),
+                )
+
     def _setup_engine_step(self):
         return ExplanationStep(
             explainer_pipeline=self._explainer_pipeline,
@@ -95,3 +113,22 @@ class ExplanationEngine(AtriaEngine):
             train_baselines=self._train_baselines,
             with_amp=self._with_amp,
         )
+
+    def _configure_progress_bar(self, engine: Engine) -> None:
+        import ignite.distributed as idist
+
+        if idist.get_rank() == 0:
+            from ignite.engine import Events
+
+            self._progress_bar.attach(
+                engine,
+                event_name=Events.ITERATION_STARTED(every=self._logging.refresh_rate),
+                metric_names=None,
+            )
+
+    def _configure_engine(self, engine: Engine):
+        self._configure_test_run(engine=engine)
+        self._configure_metrics(engine=engine)
+        self._configure_progress_bar(engine=engine)
+        self._configure_tb_logger(engine=engine)
+        return engine

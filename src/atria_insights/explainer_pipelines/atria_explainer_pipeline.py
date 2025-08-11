@@ -23,12 +23,13 @@ if TYPE_CHECKING:
     )
     from ignite.contrib.handlers import TensorboardLogger
     from ignite.handlers import ProgressBar
+    from ignite.metrics import Metric
+    from torchxai.explainers import Explainer
 
     from atria_insights.utilities.containers import (
-        ExplainerInputs,
+        ExplainerStepInputs,
         ExplainerStepOutput,
     )
-
 
 logger = get_logger(__name__)
 
@@ -90,6 +91,8 @@ class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMi
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
         self._progress_bar: ProgressBar | None = None
+        self._built_explainer: Explainer | None = None
+        self._built_explainer_metrics: Dict[str, Metric] | None = None
 
     @property
     def model_pipeline(self) -> AtriaModelPipeline:
@@ -100,8 +103,18 @@ class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMi
         self._config.model_pipeline = value
 
     @property
-    def explainer(self) -> ExplainerBuilder | None:
-        return self._config.explainer
+    def metrics(self) -> Dict[str, Metric] | None:
+        """
+        Returns the metrics defined in the explainer pipeline configuration.
+        """
+        return self._built_explainer_metrics
+
+    @property
+    def explainer(self) -> Explainer | None:
+        """
+        Returns the explainer instance built from the configuration.
+        """
+        return self._built_explainer
 
     def attach_progress_bar(self, progress_bar: ProgressBar) -> None:
         """
@@ -111,10 +124,13 @@ class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMi
             progress_bar (ProgressBar): The progress bar to attach.
         """
         self._progress_bar = progress_bar
+        for key, value in self._built_explainer_metrics.items():
+            value._progress_bar = progress_bar
 
     def build(
         self,
         dataset_metadata: DatasetMetadata,
+        device: str | torch.device | None = "cpu",
         tb_logger: TensorboardLogger | None = None,
     ) -> None:
         """
@@ -124,38 +140,18 @@ class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMi
             dataset_metadata=dataset_metadata,
             tb_logger=tb_logger,
         )
+        self._built_explainer = self.config.explainer(model=self.model_pipeline.model)
+        self._built_explainer_metrics = {
+            metric_name: metric_builder(
+                explainer=self._built_explainer,
+                forward_func=self.model_pipeline.model,
+                device=device,
+                progress_bar=self._progress_bar,
+            )
+            for metric_name, metric_builder in self.config.explainer_metrics.items()
+        }
+
         return self
-
-    # @staticmethod
-    # def from_model_pipeline(
-    #     model_pipeline: AtriaModelPipeline,
-    #     explainer: ExplainerBuilder | None = None,
-    #     explainer_metrics: dict[str, ExplainerMetricBuilder] | None = None,
-    #     **kwargs: Any,
-    # ) -> AtriaExplainerPipeline:
-    #     """
-    #     Factory method to create an instance of AtriaExplanationPipeline from a model pipeline.
-    #     """
-
-    #     from atria_models.pipelines.classification.image import (
-    #         ImageClassificationPipeline,
-    #     )
-
-    #     from atria_insights.explainer_pipelines.classification.image import (
-    #         ImageClassificationExplainerPipeline,
-    #     )
-
-    #     if isinstance(model_pipeline, ImageClassificationPipeline):
-    #         return ImageClassificationExplainerPipeline(
-    #             model_pipeline=model_pipeline,
-    #             explainer=explainer,
-    #             explainer_metric=explainer_metrics,
-    #             **kwargs,
-    #         )
-    #     else:
-    #         raise NotImplementedError(
-    #             f"Explanation pipeline for {type(model_pipeline)} is not implemented."
-    #         )
 
     def explanation_step(
         self,
@@ -163,6 +159,8 @@ class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMi
         train_baselines: Dict[str, torch.Tensor] | None = None,
         **kwargs,
     ) -> ExplainerStepOutput:
+        import torch
+
         # prepare inputs for explanation
         with torch.no_grad():
             explainer_step_inputs = self._prepare_explainer_step_inputs(batch=batch)
@@ -178,8 +176,12 @@ class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMi
 
             # model forward
             model_outputs = self.model_pipeline.model(
-                *tuple(explainer_step_inputs.inputs.values()),
-                *tuple(explainer_step_inputs.additional_forward_kwargs.values()),
+                *tuple(explainer_step_inputs.model_inputs.explained_inputs.values()),
+                *tuple(
+                    explainer_step_inputs.model_inputs.additional_forward_kwargs.values()
+                    if explainer_step_inputs.model_inputs.additional_forward_kwargs
+                    else []
+                ),
             )
 
             # prepare target
@@ -194,7 +196,6 @@ class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMi
             explainer_step_inputs=explainer_step_inputs,
             target=target,
             train_baselines=train_baselines,
-            model_outputs=model_outputs,
         )
 
         # reduce explanations
@@ -222,22 +223,23 @@ class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMi
     def _prepare_step_outputs(
         self,
         batch: BaseDataInstance,  # noqa: F821
-        explainer_step_inputs: ExplainerInputs,
+        explainer_step_inputs: ExplainerStepInputs,
         target: Union[torch.Tensor, List[torch.Tensor]],
         model_outputs: torch.Tensor,
         explanations: Dict[str, torch.Tensor],
         reduced_explanations: Dict[str, torch.Tensor],
     ) -> ExplainerStepOutput:
+        from atria_insights.utilities.containers import (
+            ExplainerStepOutput,
+        )
+
         return ExplainerStepOutput(
             index=batch.index,
             sample_id=batch.sample_id,
             # sample explanation step data
-            feature_masks=explainer_step_inputs.feature_masks,
-            baselines=explainer_step_inputs.baselines,
+            explainer_step_inputs=explainer_step_inputs,
             target=target,
             model_outputs=model_outputs,
-            total_features=explainer_step_inputs.total_features,
-            frozen_features=explainer_step_inputs.frozen_features,
             # explanations
             explanations=explanations,
             reduced_explanations=reduced_explanations,
@@ -246,7 +248,7 @@ class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMi
     @abstractmethod
     def _prepare_explainer_step_inputs(
         self, batch: BaseDataInstance
-    ) -> ExplainerInputs:
+    ) -> ExplainerStepInputs:
         pass
 
     @abstractmethod
@@ -257,13 +259,15 @@ class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMi
     def _prepare_target(
         self,
         batch: BaseDataInstance,
+        explainer_step_inputs: ExplainerStepInputs,
+        model_outputs: torch.Tensor,
     ) -> Union[torch.Tensor, List[torch.Tensor]]:
         pass
 
     def _reduce_explanations(
         self,
         batch: BaseDataInstance,
-        explainer_args: ExplainerInputs,
+        explainer_step_inputs: ExplainerStepInputs,
         explanations: Dict[str, torch.Tensor],
     ) -> Dict[str, torch.Tensor]:
         return explanations

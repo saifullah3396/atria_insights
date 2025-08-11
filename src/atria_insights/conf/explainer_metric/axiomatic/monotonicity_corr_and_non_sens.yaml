@@ -11,7 +11,7 @@ metric_func:
     _target_: torchxai.metrics._utils.perturbation.default_fixed_baseline_perturb_func
     _partial_: false
   n_perturbations_per_feature: 10
-  max_features_processed_per_batch: null
+  max_features_processed_per_batch: 1000
   percentage_feature_removal_per_step: 0.0
   zero_attribution_threshold: 1.0e-05
   zero_variance_threshold: 1.0e-05

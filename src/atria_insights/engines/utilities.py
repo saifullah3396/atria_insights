@@ -31,51 +31,65 @@ def _get_model_forward_fn(model):
 
 def _prepare_explainer_input_kwargs(
     explainer: Explainer,
-    explainer_args: ExplainerArguments,
+    explanation_step_inputs: ExplainerArguments,
     target: Union[torch.Tensor, List[torch.Tensor]],
 ):
     possible_args = _get_possible_args(explainer.explain)
     explainer_input_kwargs = dict(
-        inputs=tuple(explainer_args.inputs.values()),
+        inputs=tuple(explanation_step_inputs.inputs.values()),
         additional_forward_args=tuple(
-            explainer_args.additional_forward_kwargs.values()
+            explanation_step_inputs.additional_forward_kwargs.values()
         ),
         target=target,
     )
     if "baselines" in possible_args:
-        assert explainer_args.baselines.keys() == explainer_args.inputs.keys(), (
-            f"Baselines must have the same keys as inputs. Got {explainer_args.baselines.keys()} "
+        assert (
+            explanation_step_inputs.baselines.keys()
+            == explanation_step_inputs.inputs.keys()
+        ), (
+            f"Baselines must have the same keys as inputs. Got {explanation_step_inputs.baselines.keys()} "
         )
-        explainer_input_kwargs["baselines"] = tuple(explainer_args.baselines.values())
+        explainer_input_kwargs["baselines"] = tuple(
+            explanation_step_inputs.baselines.values()
+        )
     if "feature_mask" in possible_args:
-        assert explainer_args.feature_masks.keys() == explainer_args.inputs.keys(), (
-            f"Feature masks must have the same keys as inputs. Got {explainer_args.feature_masks.keys()} "
+        assert (
+            explanation_step_inputs.feature_masks.keys()
+            == explanation_step_inputs.inputs.keys()
+        ), (
+            f"Feature masks must have the same keys as inputs. Got {explanation_step_inputs.feature_masks.keys()} "
         )
         explainer_input_kwargs["feature_mask"] = tuple(
-            explainer_args.feature_masks.values()
+            explanation_step_inputs.feature_masks.values()
         )
     if "frozen_features" in possible_args:
         assert (
-            len(explainer_args.frozen_features)
-            == list(explainer_args.inputs.values())[0].shape[0]
+            len(explanation_step_inputs.frozen_features)
+            == list(explanation_step_inputs.inputs.values())[0].shape[0]
         ), (
             f"Length of frozen features must be equal to the batch size. "
-            f"Got {len(explainer_args.frozen_features)} and {list(explainer_args.inputs.values())[0].shape[0]}"
+            f"Got {len(explanation_step_inputs.frozen_features)} and {list(explanation_step_inputs.inputs.values())[0].shape[0]}"
         )
-        explainer_input_kwargs["frozen_features"] = explainer_args.frozen_features
+        explainer_input_kwargs["frozen_features"] = (
+            explanation_step_inputs.frozen_features
+        )
     if "train_baselines" in possible_args:
-        assert explainer_args.train_baselines.keys() == explainer_args.inputs.keys(), (
-            f"Train baselines must have the same keys as inputs. Got {explainer_args.train_baselines.keys()} "
+        assert (
+            explanation_step_inputs.train_baselines.keys()
+            == explanation_step_inputs.inputs.keys()
+        ), (
+            f"Train baselines must have the same keys as inputs. Got {explanation_step_inputs.train_baselines.keys()} "
         )
 
         for train_baselines, inputs in zip(
-            explainer_args.train_baselines.values(), explainer_args.inputs.values()
+            explanation_step_inputs.train_baselines.values(),
+            explanation_step_inputs.inputs.values(),
         ):
             assert train_baselines.shape[1:] == inputs.shape[1:], (
                 f"Train baselines must have the same shape as inputs. Got {train_baselines.shape} and {inputs.shape}"
             )
         explainer_input_kwargs["train_baselines"] = tuple(
-            explainer_args.train_baselines.values()
+            explanation_step_inputs.train_baselines.values()
         )
     return explainer_input_kwargs
 
@@ -89,7 +103,9 @@ def _explainer_forward(
 ):
     # prepare explainer input kwargs
     explainer_input_kwargs = _prepare_explainer_input_kwargs(
-        explainer=explainer, explainer_args=explanation_step_inputs, target=target
+        explainer=explainer,
+        explanation_step_inputs=explanation_step_inputs,
+        target=target,
     )
 
     if explainer._is_multi_target:

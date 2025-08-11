@@ -5,7 +5,7 @@ metric_func:
   feature_mask: null
   additional_forward_args: null
   target: null
-  max_features_processed_per_batch: null
+  max_features_processed_per_batch: 1000
   total_feature_bins: 100
   frozen_features: null
   n_random_perms: 10

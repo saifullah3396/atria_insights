@@ -31,7 +31,7 @@ uv run python -W ignore \
     task_pipeline=explainer/image_classification \
     dataset@data_pipeline.dataset=cifar10/default \
     explainer_pipeline.model_pipeline.model.model_name=resnet50 \
-    data_pipeline.dataloader_config.eval_batch_size=64 \
+    data_pipeline.dataloader_config.eval_batch_size=1 \
     data_pipeline.dataloader_config.num_workers=8 \
     experiment_name=explain_cifar10_resnet50 \
     $@

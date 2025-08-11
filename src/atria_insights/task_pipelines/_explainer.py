@@ -118,7 +118,7 @@ class Explainer:
         # initialize the task module from partial
         logger.info("Setting up task module")
         self._explainer_pipeline = self._explainer_pipeline.build(
-            dataset_metadata=self._data_pipeline.dataset_metadata,
+            dataset_metadata=self._data_pipeline.dataset_metadata, device=self._device
         )
 
     def _build_test_engine(self) -> None:

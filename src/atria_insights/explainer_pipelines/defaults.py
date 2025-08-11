@@ -17,7 +17,9 @@ _METRICS_DEFAULTS = [
     {"/explainer_metric@explainer_metrics.faithfulness_estimate": "faithfulness/faithfulness_estimate"},
     {"/explainer_metric@explainer_metrics.infidelity": "faithfulness/infidelity"},
     {"/explainer_metric@explainer_metrics.monotonicity": "faithfulness/monotonicity"},
-    {"/explainer_metric@explainer_metrics.sensitivity_n": "faithfulness/sensitivity_n"},
+    {"/explainer_metric@explainer_metrics.sensitivity_n_2_normalized": "faithfulness/sensitivity_n_2_normalized"},# @package __global__
+    {"/explainer_metric@explainer_metrics.sensitivity_n_4_normalized": "faithfulness/sensitivity_n_4_normalized"},
+    {"/explainer_metric@explainer_metrics.sensitivity_n_6_normalized": "faithfulness/sensitivity_n_6_normalized"},
 
     # Robustness metrics
     {"/explainer_metric@explainer_metrics.sensitivity_max_and_avg": "robustness/sensitivity_max_and_avg"},

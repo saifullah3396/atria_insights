@@ -6,7 +6,7 @@ metric_func:
   feature_mask: null
   additional_forward_args: null
   target: null
-  max_features_processed_per_batch: null
+  max_features_processed_per_batch: 1000
   percentage_feature_removal_per_step: 0.0
   frozen_features: null
   is_multi_target: false

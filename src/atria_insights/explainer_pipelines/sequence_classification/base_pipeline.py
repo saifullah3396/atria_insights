@@ -12,7 +12,7 @@ from torchxai.metrics._utils.common import _reduce_tensor_with_indices_non_deter
 from atria_insights.explainer_pipelines.atria_explainer_pipeline import (
     AtriaExplainerPipeline,
 )
-from atria_insights.utilities.containers import ExplainerInputs
+from atria_insights.utilities.containers import ExplainerStepInputs
 
 logger = get_logger(__name__)
 
@@ -34,7 +34,7 @@ class SequenceClassificationExplanationPipeline(AtriaExplainerPipeline):
     @abstractmethod
     def _prepare_explainer_step_inputs(
         self, batch: TokenizedDocumentInstance
-    ) -> ExplainerInputs:
+    ) -> ExplainerStepInputs:
         pass
 
     @abstractmethod
@@ -46,7 +46,7 @@ class SequenceClassificationExplanationPipeline(AtriaExplainerPipeline):
     def _prepare_target(
         self,
         batch: TokenizedDocumentInstance,
-        explainer_args: ExplainerInputs,
+        explanation_step_inputs: ExplainerStepInputs,
         model_outputs: torch.Tensor,
     ):
         return model_outputs.argmax(dim=-1)
@@ -63,7 +63,7 @@ class SequenceClassificationExplanationPipeline(AtriaExplainerPipeline):
     def _reduce_explanations(
         self,
         _: TokenizedDocumentInstance,
-        explainer_inputs: ExplainerInputs,
+        explainer_inputs: ExplainerStepInputs,
         explanations: Dict[str, torch.Tensor],
     ) -> Dict[str, torch.Tensor]:
         reduced_explanations = {}

@@ -4,12 +4,12 @@ from typing import Dict, List, Optional, Union
 import torch
 import tqdm
 from atria_core.logger.logger import get_logger
-from atria_core.utilities.common import _get_possible_args
 from ignite.utils import apply_to_tensor
 from torchxai.explainers.explainer import Explainer
 from torchxai.metrics._utils.common import _reduce_tensor_with_indices_non_deterministic
 
-from atria_insights.utilities.containers import ExplainerInputs
+from atria_insights.registry.registry_groups import ExplainerBuilder
+from atria_insights.utilities.containers import ExplainerStepInputs
 
 logger = get_logger(__name__)
 
@@ -132,16 +132,20 @@ def _map_inputs_to_ordered_dict(inputs: Dict[str, torch.Tensor], keys):
 
 
 def _prepare_explainer_input_kwargs(
-    explainer: Explainer,
-    explainer_step_inputs: ExplainerInputs,
+    explainer: ExplainerBuilder,
+    explainer_step_inputs: ExplainerStepInputs,
     target: Union[torch.Tensor, List[torch.Tensor]],
     train_baselines: Optional[Dict[str, torch.Tensor]] = None,
 ):
+    from atria_core.utilities.common import _get_possible_args
+
     possible_args = _get_possible_args(explainer.explain)
     explainer_input_kwargs = dict(
         inputs=tuple(explainer_step_inputs.model_inputs.explained_inputs.values()),
         additional_forward_args=tuple(
             explainer_step_inputs.model_inputs.additional_forward_kwargs.values()
+            if explainer_step_inputs.model_inputs.additional_forward_kwargs
+            else []
         ),
         target=target,
     )
@@ -179,16 +183,13 @@ def _prepare_explainer_input_kwargs(
             explainer_step_inputs.frozen_features
         )
     if "train_baselines" in possible_args:
-        raise NotImplementedError(
-            "Train baselines are not supported in the current implementation. "
-            "Please provide train baselines as part of the explainer step inputs."
-        )
+        explainer_input_kwargs["train_baselines"] = train_baselines
     return explainer_input_kwargs
 
 
 def _explainer_forward(
     explainer: Explainer,
-    explanation_step_inputs: ExplainerInputs,
+    explainer_step_inputs: ExplainerStepInputs,
     target: torch.Tensor,
     iterative_computation: bool = False,
     train_baselines: Optional[Dict[str, torch.Tensor]] = None,
@@ -196,7 +197,7 @@ def _explainer_forward(
     # prepare explainer input kwargs
     explainer_input_kwargs = _prepare_explainer_input_kwargs(
         explainer=explainer,
-        explainer_step_inputs=explanation_step_inputs,
+        explainer_step_inputs=explainer_step_inputs,
         target=target,
         train_baselines=train_baselines,
     )
@@ -205,7 +206,7 @@ def _explainer_forward(
         # iterate over each sample in the batch separately
         explanations = []
         for batch_idx in range(
-            explanation_step_inputs.inputs["input_embeddings"].shape[0]
+            explainer_step_inputs.inputs["input_embeddings"].shape[0]
         ):
             current_explainer_kwargs = {}
             for k, v in explainer_input_kwargs.items():
@@ -243,7 +244,7 @@ def _explainer_forward(
                 explanations.append(
                     {
                         input_key: None
-                        for input_key in explanation_step_inputs.inputs.keys()
+                        for input_key in explainer_step_inputs.inputs.keys()
                     }
                 )
                 continue
@@ -273,7 +274,7 @@ def _explainer_forward(
             target_explanations_per_input = {
                 input_key: torch.cat(explanations, dim=0)
                 for input_key, explanations in zip(
-                    explanation_step_inputs.inputs.keys(), target_explanations_per_input
+                    explainer_step_inputs.inputs.keys(), target_explanations_per_input
                 )
             }
             explanations.append(target_explanations_per_input)
@@ -287,7 +288,7 @@ def _explainer_forward(
         explanations = {
             input_key: explanation
             for input_key, explanation in zip(
-                explanation_step_inputs.inputs.keys(),
+                explainer_step_inputs.model_inputs.explained_inputs.keys(),
                 explainer.explain(**explainer_input_kwargs),
             )
         }
@@ -313,11 +314,14 @@ def _explainer_forward(
             )
 
     # detach tensors
-    apply_to_tensor(explanation_step_inputs.inputs, torch.detach)
-    if all(x is not None for x in explanation_step_inputs.baselines.values()):
-        apply_to_tensor(explanation_step_inputs.baselines, torch.detach)
-    apply_to_tensor(explanation_step_inputs.additional_forward_kwargs, torch.detach)
-    apply_to_tensor(explanation_step_inputs.feature_masks, torch.detach)
+    apply_to_tensor(explainer_step_inputs.model_inputs.explained_inputs, torch.detach)
+    if all(x is not None for x in explainer_step_inputs.baselines.values()):
+        apply_to_tensor(explainer_step_inputs.baselines, torch.detach)
+    if explainer_step_inputs.model_inputs.additional_forward_kwargs:
+        apply_to_tensor(
+            explainer_step_inputs.model_inputs.additional_forward_kwargs, torch.detach
+        )
+    apply_to_tensor(explainer_step_inputs.feature_masks, torch.detach)
     for input_key, explanation_per_input in explanations.items():
         if isinstance(explanation_per_input, list):
             for explanation in explanation_per_input:

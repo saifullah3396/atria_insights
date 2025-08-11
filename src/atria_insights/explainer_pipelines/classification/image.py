@@ -13,7 +13,7 @@ from atria_insights.explainer_pipelines.atria_explainer_pipeline import (
 from atria_insights.explainer_pipelines.defaults import _METRICS_DEFAULTS
 from atria_insights.explainer_pipelines.utilities import _get_first_layer
 from atria_insights.registry import EXPLAINER_PIPELINE
-from atria_insights.utilities.containers import ExplainerInputs, ModelInputs
+from atria_insights.utilities.containers import ExplainerStepInputs, ModelInputs
 from atria_insights.utilities.image import _create_segmentation_fn
 
 logger = get_logger(__name__)
@@ -52,21 +52,24 @@ class ImageClassificationExplainerPipeline(AtriaExplainerPipeline):
 
     def _prepare_explainer_step_inputs(
         self, batch: ImageInstance | DocumentInstance
-    ) -> ExplainerInputs:
-        return ExplainerInputs(
+    ) -> ExplainerStepInputs:
+        return ExplainerStepInputs(
             model_inputs=ModelInputs(
-                explained_inputs={"image": batch.image},
+                explained_inputs={"image": batch.image.content},
             ),
-            baselines={"image": torch.zeros_like(batch.image)},
-            metric_baselines={"image": torch.zeros_like(batch.image)},
-            feature_masks={"image": self._segmentation_fn(batch.image)},
-            total_features=batch.image.numel(),
+            baselines={"image": torch.zeros_like(batch.image.content)},
+            metric_baselines={"image": torch.zeros_like(batch.image.content)},
+            feature_masks={
+                "image": self._segmentation_fn(batch.image.content).expand_as(
+                    batch.image.content
+                )
+            },
             constant_shifts={
                 "image": torch.ones_like(
-                    batch.image[0], device=batch.image.device
+                    batch.image.content[0], device=batch.image.content.device
                 ).unsqueeze(0)
             },
-            input_layer_names=_get_first_layer(self._model_pipeline.model)[0],
+            input_layer_names={"image": _get_first_layer(self.model_pipeline.model)[0]},
         )
 
     def _prepare_train_baselines(
@@ -77,7 +80,7 @@ class ImageClassificationExplainerPipeline(AtriaExplainerPipeline):
     def _prepare_target(
         self,
         batch: ImageInstance | DocumentInstance,
-        explainer_args: ExplainerInputs,
+        explainer_step_inputs: ExplainerStepInputs,
         model_outputs: torch.Tensor,
     ):
         return model_outputs.argmax(dim=-1)
@@ -85,7 +88,7 @@ class ImageClassificationExplainerPipeline(AtriaExplainerPipeline):
     def reduce_explanations(
         self,
         batch: BaseDataInstance,
-        explainer_args: ExplainerInputs,
+        explainer_step_inputs: ExplainerStepInputs,
         explanations: Dict[str, torch.Tensor],
     ) -> Dict[str, torch.Tensor]:
         return {k: explanation.sum(dim=1) for k, explanation in explanations.items()}

@@ -36,7 +36,7 @@ class TorchXAIMetric(Metric):
         self,
         metric_func: partial[Callable],
         forward_func: torch.nn.Module,
-        explainer: partial[Explainer],
+        explainer: Explainer,
         output_transform=default_output_transform,
         device="cpu",
         progress_bar: Optional[ProgressBar] = None,
@@ -72,18 +72,18 @@ class TorchXAIMetric(Metric):
         is_target_list_of_lists = isinstance(output.target, list) and isinstance(
             output.target[0], list
         )
-        explainer = self._explainer(self._forward_func, is_multi_target=is_target_list)
-
         metric_kwargs = dict(
             forward_func=self._forward_func,
             inputs=tuple(
                 x.detach()
-                for x in output.explainer_inputs.model_inputs.explained_inputs.values()
+                for x in output.explainer_step_inputs.model_inputs.explained_inputs.values()
             ),
             additional_forward_args=tuple(
                 x.detach()
-                for x in output.explainer_inputs.model_inputs.additional_forward_kwargs.values()
-            ),
+                for x in output.explainer_step_inputs.model_inputs.additional_forward_kwargs.values()
+            )
+            if output.explainer_step_inputs.model_inputs.additional_forward_kwargs
+            else None,
             target=(
                 output.target.detach()
                 if isinstance(output.target, torch.Tensor)
@@ -93,44 +93,52 @@ class TorchXAIMetric(Metric):
             baselines=(
                 tuple(
                     x.detach()
-                    for x in output.explainer_inputs.metric_baselines.values()
+                    for x in output.explainer_step_inputs.metric_baselines.values()
                 )
                 if all(
                     x is not None
-                    for x in output.explainer_inputs.metric_baselines.values()
+                    for x in output.explainer_step_inputs.metric_baselines.values()
                 )
                 else None
             ),
             explainer_baselines=(
-                tuple(x.detach() for x in output.explainer_inputs.baselines.values())
+                tuple(
+                    x.detach() for x in output.explainer_step_inputs.baselines.values()
+                )
                 if all(
-                    x is not None for x in output.explainer_inputs.baselines.values()
+                    x is not None
+                    for x in output.explainer_step_inputs.baselines.values()
                 )
                 else None
             ),
             feature_mask=tuple(
-                x.detach() for x in output.explainer_inputs.feature_masks.values()
+                x.detach() for x in output.explainer_step_inputs.feature_masks.values()
             ),
             is_multi_target=is_target_list,
-            explainer=explainer,
+            explainer=self._explainer,
             constant_shifts=(
                 tuple(  # these are only for input invariance
-                    x.detach() for x in output.explainer_inputs.constant_shifts.values()
+                    x.detach()
+                    for x in output.explainer_step_inputs.constant_shifts.values()
                 )
-                if output.explainer_inputs.constant_shifts is not None
+                if output.explainer_step_inputs.constant_shifts is not None
                 else None
             ),
             input_layer_names=(
-                tuple(x for x in output.explainer_inputs.input_layer_names.values())
-                if output.explainer_inputs.input_layer_names is not None
+                tuple(
+                    x for x in output.explainer_step_inputs.input_layer_names.values()
+                )
+                if output.explainer_step_inputs.input_layer_names is not None
                 else None
             ),  # these are only for input invariance
             frozen_features=(
-                output.explainer_inputs.frozen_features
-                if output.explainer_inputs.frozen_features is not None
+                output.explainer_step_inputs.frozen_features
+                if output.explainer_step_inputs.frozen_features is not None
                 else None
             ),
-            train_baselines=tuple(output.explainer_inputs.train_baselines.values()),
+            train_baselines=tuple(output.explainer_step_inputs.train_baselines.values())
+            if output.explainer_step_inputs.train_baselines is not None
+            else None,
             return_intermediate_results=True,
             return_dict=True,
             show_progress=False,
@@ -139,17 +147,19 @@ class TorchXAIMetric(Metric):
         possible_args = set(inspect.signature(self._metric_func).parameters)
         if "explainer" in possible_args:
             explainer_possible_args = set(
-                inspect.signature(explainer.explain).parameters
+                inspect.signature(self._explainer.explain).parameters
             )
             if "baselines" in explainer_possible_args:
                 if "baselines" in possible_args:
                     possible_args.remove("baselines")
                 possible_args.add("explainer_baselines")
-            possible_args.update(set(inspect.signature(explainer.explain).parameters))
+            possible_args.update(
+                set(inspect.signature(self._explainer.explain).parameters)
+            )
 
         if is_target_list_of_lists:
-            batch_size = output.explainer_inputs.explainer_inputs.inputs[
-                next(iter(output.explainer_inputs.explainer_inputs.inputs))
+            batch_size = output.explainer_step_inputs.model_inputs.explained_inputs[
+                next(iter(output.explainer_step_inputs.model_inputs.explained_inputs))
             ].shape[0]
 
             metric_kwargs_list = []
@@ -246,15 +256,15 @@ class TorchXAIMetric(Metric):
         if output.explanations is None:
             return
 
-        if self._progress_bar is not None:
-            if self._attached_name is not None:
-                self._progress_bar.pbar.set_postfix_str(
-                    f"computing metric=[{self._attached_name}.{self._metric_name}]"
-                )
-            else:
-                self._progress_bar.pbar.set_postfix_str(
-                    f"computing metric=[{self._metric_name}]"
-                )
+        # if self._progress_bar is not None:
+        if self._attached_name is not None:
+            # self._progress_bar.pbar.set_postfix_str(
+            print(f"computing metric=[{self._attached_name}.{self._metric_name}]")
+            # )
+        else:
+            # self._progress_bar.pbar.set_postfix_str(
+            print(f"computing metric=[{self._metric_name}]")
+            # )
 
         start_time = time.time()
         metric_kwargs = self._prepare_metric_kwargs(output)
@@ -288,20 +298,17 @@ class TorchXAIMetric(Metric):
         metric_output = {
             **metric_output,
             "time_taken": torch.stack(
-                [
-                    time_taken / len(output.explainer_inputs.sample_keys)
-                    for _ in range(len(output.explainer_inputs.sample_keys))
-                ]
+                [time_taken / len(output.index) for _ in range(len(output.index))]
             ),
         }
 
         self._num_examples += len(metric_output)
         self._metric_outputs.append(metric_output)
 
-        if self._progress_bar is not None:
-            self._progress_bar.pbar.set_postfix_str(
-                f"computing metric=[{self._metric_name}], metric outputs=[{metric_output.keys()}]"
-            )
+        # if self._progress_bar is not None:
+        #     self._progress_bar.pbar.set_postfix_str(
+        #         f"computing metric=[{self._metric_name}], metric outputs=[{metric_output.keys()}]"
+        #     )
 
     @sync_all_reduce("_num_examples")
     def compute(self) -> float:
