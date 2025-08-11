@@ -27,6 +27,5 @@ output_transform:
 device: cpu
 progress_bar: null
 attached_name: null
-cacher: null
 module: atria_insights.metrics.torchxai_metric.TorchXAIMetric
 _target_: atria_insights.registry.registry_groups.ExplMetricBuilder

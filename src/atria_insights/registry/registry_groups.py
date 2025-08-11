@@ -23,4 +23,4 @@ class ExplMetricsRegistryGroup(RegistryGroup):
 class ExplainerRegistryGroup(RegistryGroup):
     __registers_as_module_builder__ = True
     __module_builder_class__ = ExplainerBuilder
-    __exclude_from_builder__ = []  # these are passed at runtime from trainer
+    __exclude_from_builder__ = ["model"]  # these are passed at runtime from trainer

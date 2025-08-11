@@ -23,10 +23,9 @@ from atria_registry.utilities import write_registry_to_yaml
 
 from atria_insights.explainers.registry import *  # noqa
 from atria_insights.metrics.registry import *  # noqa
-from atria_insights.task_pipelines._explainer import *  # noqa
 
 if __name__ == "__main__":
     write_registry_to_yaml(
         str(Path(__file__).parent / "conf"),
-        types=["expl_metric", "explainer", "task_pipeline"],
+        types=["expl_metric", "explainer"],
     )

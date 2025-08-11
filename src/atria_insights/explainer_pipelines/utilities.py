@@ -3,24 +3,15 @@ from typing import Dict, List, Optional, Union
 
 import torch
 import tqdm
-from atria.core.utilities.common import _get_possible_args
-from atria.core.utilities.logging import get_logger
+from atria_core.logger.logger import get_logger
+from atria_core.utilities.common import _get_possible_args
 from ignite.utils import apply_to_tensor
-from insightx.model_explainability_wrappers.base import ModelExplainabilityWrapper
-from insightx.utilities.containers import ExplainerArguments
 from torchxai.explainers.explainer import Explainer
 from torchxai.metrics._utils.common import _reduce_tensor_with_indices_non_deterministic
 
-from atria_insights.model_explainability_wrappers.base import ModelExplainabilityWrapper
-from atria_insights.utilities.containers import ExplanationStepInputs
+from atria_insights.utilities.containers import ExplainerInputs
 
 logger = get_logger(__name__)
-
-
-def _unwrap_model(model):
-    if isinstance(model, ModelExplainabilityWrapper):
-        return _unwrap_model(model.model)
-    return model
 
 
 def _get_first_layer(module, name=None):
@@ -31,10 +22,6 @@ def _get_first_layer(module, name=None):
             name=children[0][0] if name is None else name + "." + children[0][0],
         )
     return name, module
-
-
-def _get_model_forward_fn(model):
-    return _unwrap_model(model).forward
 
 
 def _extract_feature_group_explanations(
@@ -144,76 +131,74 @@ def _map_inputs_to_ordered_dict(inputs: Dict[str, torch.Tensor], keys):
     return OrderedDict({key: inputs[key] for key in keys})
 
 
-def _unwrap_model(model):
-    if isinstance(model, ModelExplainabilityWrapper):
-        return _unwrap_model(model.model)
-    return model
-
-
-def _get_model_forward_fn(model):
-    return _unwrap_model(model).forward
-
-
 def _prepare_explainer_input_kwargs(
     explainer: Explainer,
-    explainer_args: ExplainerArguments,
+    explainer_step_inputs: ExplainerInputs,
     target: Union[torch.Tensor, List[torch.Tensor]],
+    train_baselines: Optional[Dict[str, torch.Tensor]] = None,
 ):
     possible_args = _get_possible_args(explainer.explain)
     explainer_input_kwargs = dict(
-        inputs=tuple(explainer_args.inputs.values()),
+        inputs=tuple(explainer_step_inputs.model_inputs.explained_inputs.values()),
         additional_forward_args=tuple(
-            explainer_args.additional_forward_kwargs.values()
+            explainer_step_inputs.model_inputs.additional_forward_kwargs.values()
         ),
         target=target,
     )
     if "baselines" in possible_args:
-        assert explainer_args.baselines.keys() == explainer_args.inputs.keys(), (
-            f"Baselines must have the same keys as inputs. Got {explainer_args.baselines.keys()} "
+        assert (
+            explainer_step_inputs.baselines.keys()
+            == explainer_step_inputs.model_inputs.explained_inputs.keys()
+        ), (
+            f"Baselines must have the same keys as inputs. Got {explainer_step_inputs.baselines.keys()} "
         )
-        explainer_input_kwargs["baselines"] = tuple(explainer_args.baselines.values())
+        explainer_input_kwargs["baselines"] = tuple(
+            explainer_step_inputs.baselines.values()
+        )
     if "feature_mask" in possible_args:
-        assert explainer_args.feature_masks.keys() == explainer_args.inputs.keys(), (
-            f"Feature masks must have the same keys as inputs. Got {explainer_args.feature_masks.keys()} "
+        assert (
+            explainer_step_inputs.feature_masks.keys()
+            == explainer_step_inputs.model_inputs.explained_inputs.keys()
+        ), (
+            f"Feature masks must have the same keys as inputs. Got {explainer_step_inputs.feature_masks.keys()} "
         )
         explainer_input_kwargs["feature_mask"] = tuple(
-            explainer_args.feature_masks.values()
+            explainer_step_inputs.feature_masks.values()
         )
     if "frozen_features" in possible_args:
         assert (
-            len(explainer_args.frozen_features)
-            == list(explainer_args.inputs.values())[0].shape[0]
+            len(explainer_step_inputs.frozen_features)
+            == list(explainer_step_inputs.model_inputs.explained_inputs.values())[
+                0
+            ].shape[0]
         ), (
             f"Length of frozen features must be equal to the batch size. "
-            f"Got {len(explainer_args.frozen_features)} and {list(explainer_args.inputs.values())[0].shape[0]}"
+            f"Got {len(explainer_step_inputs.frozen_features)} and {list(explainer_step_inputs.model_inputs.explained_inputs.values())[0].shape[0]}"
         )
-        explainer_input_kwargs["frozen_features"] = explainer_args.frozen_features
+        explainer_input_kwargs["frozen_features"] = (
+            explainer_step_inputs.frozen_features
+        )
     if "train_baselines" in possible_args:
-        assert explainer_args.train_baselines.keys() == explainer_args.inputs.keys(), (
-            f"Train baselines must have the same keys as inputs. Got {explainer_args.train_baselines.keys()} "
-        )
-
-        for train_baselines, inputs in zip(
-            explainer_args.train_baselines.values(), explainer_args.inputs.values()
-        ):
-            assert train_baselines.shape[1:] == inputs.shape[1:], (
-                f"Train baselines must have the same shape as inputs. Got {train_baselines.shape} and {inputs.shape}"
-            )
-        explainer_input_kwargs["train_baselines"] = tuple(
-            explainer_args.train_baselines.values()
+        raise NotImplementedError(
+            "Train baselines are not supported in the current implementation. "
+            "Please provide train baselines as part of the explainer step inputs."
         )
     return explainer_input_kwargs
 
 
 def _explainer_forward(
     explainer: Explainer,
-    explanation_step_inputs: ExplanationStepInputs,
+    explanation_step_inputs: ExplainerInputs,
     target: torch.Tensor,
     iterative_computation: bool = False,
+    train_baselines: Optional[Dict[str, torch.Tensor]] = None,
 ):
     # prepare explainer input kwargs
     explainer_input_kwargs = _prepare_explainer_input_kwargs(
-        explainer=explainer, explainer_args=explanation_step_inputs, target=target
+        explainer=explainer,
+        explainer_step_inputs=explanation_step_inputs,
+        target=target,
+        train_baselines=train_baselines,
     )
 
     if explainer._is_multi_target:
@@ -244,12 +229,12 @@ def _explainer_forward(
                 if isinstance(value, tuple):
                     for v in value:
                         assert v.shape[0] == 1
-                    logger.debug(f"{key}: {[v.shape for v in value]}")
+                    logger.info(f"{key}: {[v.shape for v in value]}")
                 elif isinstance(value, torch.Tensor):
                     assert value.shape[0] == 1, (
                         f"{key} found with batch size > 1: {value.shape}"
                     )
-                    logger.debug(f"{key}: {value.shape}")
+                    logger.info(f"{key}: {value.shape}")
 
             # this returns a list of explanations for each target
             # example target 0 -> (explanation_embeddings, explanation_position_embeddings, ...)
@@ -308,22 +293,22 @@ def _explainer_forward(
         }
 
     # log information
-    logger.debug("Explanations generated with the following information:")
-    logger.debug(f"Explainer: {explainer.__class__.__name__}")
-    logger.debug(f"Explaination keys: {explanations.keys()}")
+    logger.info("Explanations generated with the following information:")
+    logger.info(f"Explainer: {explainer.__class__.__name__}")
+    logger.info(f"Explaination keys: {explanations.keys()}")
     for input_key, explanation_per_input in explanations.items():
         if isinstance(explanation_per_input, list):
-            logger.debug(
+            logger.info(
                 f"Explaination shapes [{input_key}] {[v.shape if v is not None else v for v in explanation_per_input]}"
             )
-            logger.debug(
+            logger.info(
                 f"Explaination types [{input_key}] {[v.dtype if v is not None else v for v in explanation_per_input]}"
             )
         else:
-            logger.debug(
+            logger.info(
                 f"Explaination shape [{input_key}] {explanation_per_input.shape}"
             )
-            logger.debug(
+            logger.info(
                 f"Explaination type [{input_key}] {explanation_per_input.dtype}"
             )
 

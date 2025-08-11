@@ -7,19 +7,17 @@ from atria_core.types.data_instance.document_instance import DocumentInstance
 from atria_core.types.data_instance.image_instance import ImageInstance
 from atria_models.pipelines.classification.image import ImageClassificationPipeline
 
-from atria_insights.explanation_pipelines.atria_explanation_pipeline import (
-    AtriaExplanationPipeline,
+from atria_insights.explainer_pipelines.atria_explainer_pipeline import (
+    AtriaExplainerPipeline,
 )
-from atria_insights.explanation_pipelines.utilities import _get_first_layer
-from atria_insights.utilities.containers import ExplanationStepInputs, ModelInputs
-from atria_insights_old.model_explainability_wrappers.utils import (
-    _create_segmentation_fn,
-)
+from atria_insights.explainer_pipelines.utilities import _get_first_layer
+from atria_insights.utilities.containers import ExplainerInputs, ModelInputs
+from atria_insights.utilities.image import _create_segmentation_fn
 
 logger = get_logger(__name__)
 
 
-class ImageClassificationExplanationPipeline(AtriaExplanationPipeline):
+class ImageClassificationExplainerPipeline(AtriaExplainerPipeline):
     def __init__(
         self,
         model_pipeline: ImageClassificationPipeline,
@@ -36,8 +34,8 @@ class ImageClassificationExplanationPipeline(AtriaExplanationPipeline):
 
     def _prepare_explanation_step_inputs(
         self, batch: ImageInstance | DocumentInstance
-    ) -> ExplanationStepInputs:
-        return ExplanationStepInputs(
+    ) -> ExplainerInputs:
+        return ExplainerInputs(
             model_inputs=ModelInputs(
                 explained_inputs={"image": batch.image},
             ),
@@ -61,7 +59,7 @@ class ImageClassificationExplanationPipeline(AtriaExplanationPipeline):
     def _prepare_target(
         self,
         batch: ImageInstance | DocumentInstance,
-        explainer_args: ExplanationStepInputs,
+        explainer_args: ExplainerInputs,
         model_outputs: torch.Tensor,
     ):
         return model_outputs.argmax(dim=-1)
@@ -69,7 +67,7 @@ class ImageClassificationExplanationPipeline(AtriaExplanationPipeline):
     def reduce_explanations(
         self,
         batch: BaseDataInstance,
-        explainer_args: ExplanationStepInputs,
+        explainer_args: ExplainerInputs,
         explanations: Dict[str, torch.Tensor],
     ) -> Dict[str, torch.Tensor]:
         return {k: explanation.sum(dim=1) for k, explanation in explanations.items()}

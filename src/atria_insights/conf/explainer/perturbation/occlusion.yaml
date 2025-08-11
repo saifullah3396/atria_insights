@@ -1,5 +1,4 @@
 _partial_: false
-model: ???
 sliding_window_shapes: ???
 strides: ???
 is_multi_target: false

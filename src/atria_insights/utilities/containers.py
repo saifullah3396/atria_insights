@@ -11,7 +11,7 @@ class ModelInputs:
 
 
 @dataclasses.dataclass(frozen=True)
-class ExplanationStepInputs:
+class ExplainerInputs:
     model_inputs: ModelInputs = None
     baselines: Mapping[str, torch.Tensor] = None
     metric_baselines: Mapping[str, torch.Tensor] = None
@@ -24,19 +24,15 @@ class ExplanationStepInputs:
 
 
 @dataclasses.dataclass(frozen=True)
-class ExplanationStepOutput:
+class ExplainerStepOutput:
     # sample metadata
     index: int = None
     sample_id: list[str] = None
 
-    # sample explanation step data
-    feature_masks: Mapping[str, torch.Tensor] = None
-    baselines: Mapping[str, torch.Tensor] = None
+    # sample inputs
+    explainer_inputs: ExplainerInputs = None
     target: Union[torch.Tensor, List[torch.Tensor]] = None
-    target_word_ids: List[List[int]] = None
-    model_outputs: Union[torch.Tensor, List[torch.Tensor]] = None
-    total_features: Optional[int] = None
-    frozen_features: torch.Tensor = None
+    model_outputs: torch.Tensor = None
 
     # explanations
     explanations: Union[torch.Tensor, List[torch.Tensor]] = None
