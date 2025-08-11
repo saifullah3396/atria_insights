@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, OrderedDict, Union
 
 from atria_core.logger import get_logger
 from atria_core.utilities.repr import RepresentationMixin
+from atria_models.pipelines.atria_model_pipeline import AtriaModelPipeline
 from pydantic import BaseModel, ConfigDict
 
 from atria_insights.explainer_pipelines.utilities import _explainer_forward
@@ -15,17 +16,13 @@ from atria_insights.registry.registry_groups import (
 )
 
 if TYPE_CHECKING:
-    from functools import partial
-
     import torch
     from atria_core.types import (
         BaseDataInstance,
         DatasetMetadata,
     )
-    from atria_models.pipelines.atria_model_pipeline import AtriaModelPipeline
     from ignite.contrib.handlers import TensorboardLogger
     from ignite.handlers import ProgressBar
-    from torchxai.explainers import Explainer
 
     from atria_insights.utilities.containers import (
         ExplainerInputs,
@@ -102,6 +99,10 @@ class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMi
     def model_pipeline(self, value: AtriaModelPipeline) -> None:
         self._config.model_pipeline = value
 
+    @property
+    def explainer(self) -> ExplainerBuilder | None:
+        return self._config.explainer
+
     def attach_progress_bar(self, progress_bar: ProgressBar) -> None:
         """
         Attach a progress bar to the explainer pipeline.
@@ -159,7 +160,6 @@ class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMi
     def explanation_step(
         self,
         batch: BaseDataInstance,
-        explainer: partial[Explainer],
         train_baselines: Dict[str, torch.Tensor] | None = None,
         **kwargs,
     ) -> ExplainerStepOutput:
@@ -190,7 +190,7 @@ class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMi
             )
 
         explanations = _explainer_forward(
-            explainer=explainer,
+            explainer=self.explainer,
             explainer_step_inputs=explainer_step_inputs,
             target=target,
             train_baselines=train_baselines,

@@ -1,68 +1,26 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Sequence, Tuple, Union
+from typing import TYPE_CHECKING
 
-import torch
 from atria_core.logger.logger import get_logger
+from atria_ml import ENGINE
 from atria_ml.training.engines.atria_engine import AtriaEngine
-from atria_ml.training.engines.engine_steps.base import BaseEngineStep
-from ignite.engine import Engine
 
+from atria_insights.engines.explanation_step import ExplanationStep
 from atria_insights.explainer_pipelines.atria_explainer_pipeline import (
     AtriaExplainerPipeline,
 )
 
 if TYPE_CHECKING:
     import torch
-    from ignite.engine import Engine
     from ignite.handlers import TensorboardLogger
     from torch.utils.data import DataLoader
 
 logger = get_logger(__name__)
 
 
-class ExplanationStep(BaseEngineStep):
-    def __init__(
-        self,
-        explainer_pipeline: AtriaExplainerPipeline,
-        device: Union[str, torch.device],
-        train_baselines: Dict[str, torch.Tensor],
-        non_blocking_tensor_conv: bool = False,
-        with_amp: bool = False,
-    ):
-        self._explainer_pipeline = explainer_pipeline
-        self._device = torch.device(device)
-        self._train_baselines = train_baselines
-        self._non_blocking_tensor_conv = non_blocking_tensor_conv
-        self._with_amp = with_amp
-
-    @property
-    def stage(self) -> str:
-        return "Explain"
-
-    def __call__(
-        self, engine: Engine, batch: Sequence[torch.Tensor]
-    ) -> Union[Any, Tuple[torch.Tensor]]:
-        import torch
-        from torch.cuda.amp import autocast
-
-        # ready model for evaluation
-        self._explainer_pipeline.model_pipeline.eval()
-        if self._with_amp:
-            self._explainer_pipeline.model_pipeline.half()
-
-        with torch.no_grad():
-            with autocast(enabled=self._with_amp):
-                if hasattr(batch, "to_device"):
-                    batch = batch.to_device(self._device)
-                return self._explainer_pipeline.explanation_step(
-                    batch=batch,
-                    train_baselines=self._train_baselines,
-                    explanation_engine=engine,
-                )
-
-
+@ENGINE.register("default_explanation_engine")
 class ExplanationEngine(AtriaEngine):
     def __init__(
         self,
@@ -81,7 +39,8 @@ class ExplanationEngine(AtriaEngine):
         output_dir: str | Path,
         explainer_pipeline: AtriaExplainerPipeline,
         dataloader: DataLoader,
-        device: str | torch.device,
+        device: str | torch.device | None = "cpu",
+        train_baselines: dict[str, torch.Tensor] | torch.Tensor | None = None,
         tb_logger: TensorboardLogger | None = None,
     ) -> AtriaEngine:
         """
@@ -101,8 +60,10 @@ class ExplanationEngine(AtriaEngine):
         from ignite.handlers import ProgressBar
 
         self._output_dir = output_dir
+        self._model_pipeline = explainer_pipeline.model_pipeline
         self._explainer_pipeline = explainer_pipeline
         self._dataloader = dataloader
+        self._train_baselines = train_baselines
         self._device = torch.device(device)
         self._tb_logger = tb_logger
 
@@ -131,6 +92,6 @@ class ExplanationEngine(AtriaEngine):
         return ExplanationStep(
             explainer_pipeline=self._explainer_pipeline,
             device=self._device,
+            train_baselines=self._train_baselines,
             with_amp=self._with_amp,
-            test_run=self._test_run,
         )

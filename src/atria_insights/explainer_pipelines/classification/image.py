@@ -50,7 +50,7 @@ class ImageClassificationExplainerPipeline(AtriaExplainerPipeline):
             **self.config.segmentation_fn_kwargs,
         )
 
-    def _prepare_explanation_step_inputs(
+    def _prepare_explainer_step_inputs(
         self, batch: ImageInstance | DocumentInstance
     ) -> ExplainerInputs:
         return ExplainerInputs(

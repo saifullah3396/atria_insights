@@ -13,11 +13,11 @@ defaults:
 - /data_pipeline@data_pipeline: default
 - /explainer_pipeline@explainer_pipeline: image_classification
 - _self_
-test_checkpoint: ???
-explainer: ???
-explainer_metrics: null
+test_checkpoint: null
 output_dir: outputs/explainer/image_classification/${resolve_experiment_name:${experiment_name}}/
 do_eval: true
+seed: 42
+deterministic: true
 pipeline_name: atria_explainer
 n_devices: 1
 backend: nccl

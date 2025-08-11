@@ -21,6 +21,7 @@ from pathlib import Path
 
 from atria_registry.utilities import write_registry_to_yaml
 
+from atria_insights.engines.explanation_engine import *  # noqa
 from atria_insights.explainer_pipelines.classification.image import *  # noqa
 from atria_insights.explainers.registry import *  # noqa
 from atria_insights.metrics.registry import *  # noqa
@@ -29,6 +30,12 @@ from atria_insights.task_pipelines._explainer import *  # noqa
 if __name__ == "__main__":
     write_registry_to_yaml(
         str(Path(__file__).parent / "conf"),
-        types=["explainer_metric", "explainer", "explainer_pipeline", "task_pipeline"],
-        delete_existing=True,
+        types=[
+            "explainer_metric",
+            "explainer",
+            "explainer_pipeline",
+            "task_pipeline",
+            "engine",
+        ],
+        delete_existing=False,
     )

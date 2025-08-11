@@ -63,7 +63,7 @@ EXPLAINER_METRIC.register(
 
 # complexity
 EXPLAINER_METRIC.register(
-    name="complexity/ " + complexity_entropy.__name__,
+    name="complexity/" + complexity_entropy.__name__,
     metric_func=builds(
         complexity_entropy,
         populate_full_signature=True,
@@ -71,7 +71,7 @@ EXPLAINER_METRIC.register(
     ),
 )(TorchXAIMetric)
 EXPLAINER_METRIC.register(
-    name="complexity/ " + complexity_entropy_feature_grouped.__name__,
+    name="complexity/" + complexity_entropy_feature_grouped.__name__,
     metric_func=builds(
         complexity_entropy_feature_grouped,
         populate_full_signature=True,
@@ -79,7 +79,7 @@ EXPLAINER_METRIC.register(
     ),
 )(TorchXAIMetric)
 EXPLAINER_METRIC.register(
-    name="complexity/ " + complexity_sundararajan.__name__,
+    name="complexity/" + complexity_sundararajan.__name__,
     metric_func=builds(
         complexity_sundararajan,
         populate_full_signature=True,
@@ -87,7 +87,7 @@ EXPLAINER_METRIC.register(
     ),
 )(TorchXAIMetric)
 EXPLAINER_METRIC.register(
-    name="complexity/ " + complexity_sundararajan_feature_grouped.__name__,
+    name="complexity/" + complexity_sundararajan_feature_grouped.__name__,
     metric_func=builds(
         complexity_sundararajan_feature_grouped,
         populate_full_signature=True,
@@ -95,7 +95,7 @@ EXPLAINER_METRIC.register(
     ),
 )(TorchXAIMetric)
 EXPLAINER_METRIC.register(
-    name="complexity/ " + effective_complexity.__name__,
+    name="complexity/" + effective_complexity.__name__,
     metric_func=builds(
         effective_complexity,
         populate_full_signature=True,
@@ -108,7 +108,7 @@ EXPLAINER_METRIC.register(
     ),
 )(TorchXAIMetric)
 EXPLAINER_METRIC.register(
-    name="complexity/ " + sparseness.__name__,
+    name="complexity/" + sparseness.__name__,
     metric_func=builds(
         sparseness,
         populate_full_signature=True,
@@ -116,7 +116,7 @@ EXPLAINER_METRIC.register(
     ),
 )(TorchXAIMetric)
 EXPLAINER_METRIC.register(
-    name="complexity/ " + sparseness_feature_grouped.__name__,
+    name="complexity/" + sparseness_feature_grouped.__name__,
     metric_func=builds(
         sparseness_feature_grouped,
         populate_full_signature=True,

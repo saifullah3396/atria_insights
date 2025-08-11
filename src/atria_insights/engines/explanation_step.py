@@ -18,13 +18,11 @@ class ExplanationStep(BaseEngineStep):
         explainer_pipeline: AtriaExplainerPipeline,
         device: Union[str, torch.device],
         train_baselines: Dict[str, torch.Tensor],
-        non_blocking_tensor_conv: bool = False,
         with_amp: bool = False,
     ):
         self._explainer_pipeline = explainer_pipeline
         self._device = torch.device(device)
         self._train_baselines = train_baselines
-        self._non_blocking_tensor_conv = non_blocking_tensor_conv
         self._with_amp = with_amp
 
     @property

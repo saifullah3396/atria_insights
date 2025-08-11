@@ -7,7 +7,6 @@ from atria_core.logger import get_logger
 from atria_core.types import TaskType
 from atria_datasets.pipelines.atria_data_pipeline import AtriaDataPipeline
 from atria_ml.registry import TASK_PIPELINE
-from atria_ml.training.engines.atria_engine import AtriaEngine
 from atria_ml.training.engines.evaluation import TestEngine
 from atria_ml.training.engines.utilities import RunConfig
 from atria_registry.registry_config import RegistryConfig
@@ -15,10 +14,6 @@ from atria_registry.registry_config import RegistryConfig
 from atria_insights.engines.explanation_engine import ExplanationEngine
 from atria_insights.explainer_pipelines.atria_explainer_pipeline import (
     AtriaExplainerPipeline,
-)
-from atria_insights.registry.registry_groups import (
-    ExplainerBuilder,
-    ExplainerMetricBuilder,
 )
 
 if TYPE_CHECKING:
@@ -63,25 +58,25 @@ ENGINE_DEFAULT_LIST = [
 class Explainer:
     def __init__(
         self,
-        test_checkpoint: str,
         data_pipeline: AtriaDataPipeline,
         explainer_pipeline: AtriaExplainerPipeline,
         test_engine: TestEngine,
         explanation_engine: ExplanationEngine,
-        explainer: ExplainerBuilder,
-        explainer_metrics: dict[str, ExplainerMetricBuilder] | None = None,
+        test_checkpoint: str | None = None,
         output_dir: str | None = None,
         do_eval: bool = True,
+        seed: int = 42,
+        deterministic: bool = True,
     ):
         self._output_dir = output_dir
         self._data_pipeline = data_pipeline
         self._explainer_pipeline = explainer_pipeline
         self._test_engine = test_engine
         self._explanation_engine = explanation_engine
-        self._explainer = explainer
-        self._explainer_metrics = explainer_metrics
         self._test_checkpoint = test_checkpoint
         self._do_eval = do_eval
+        self._seed = seed
+        self._deterministic = deterministic
 
     @property
     def explainer_pipeline(self):
@@ -116,7 +111,7 @@ class Explainer:
     def _build_data_pipeline(self):
         logger.info("Setting up data pipeline")
         self._data_pipeline.build(
-            runtime_transforms=self._model_pipeline.config.runtime_transforms
+            runtime_transforms=self._explainer_pipeline.model_pipeline.config.runtime_transforms
         )
 
     def _build_explainer_pipeline(self) -> None:
@@ -130,7 +125,7 @@ class Explainer:
         if self._test_engine is not None:
             logger.info("Setting up test engine")
             test_dataloader = self._data_pipeline.test_dataloader()
-            self._test_engine: AtriaEngine = self._test_engine.build(
+            self._test_engine: TestEngine = self._test_engine.build(
                 output_dir=self._output_dir,
                 model_pipeline=self._explainer_pipeline.model_pipeline,
                 dataloader=test_dataloader,
@@ -170,9 +165,6 @@ class Explainer:
         return self._explanation_engine.run()
 
     def run(self) -> dict[str, State]:
-        assert self._prepare_atria_ckpt or self._do_eval, (
-            "Either `prepare_atria_ckpt` or `do_eval` must be True. "
-        )
-        if self.do_eval:
+        if self._do_eval:
             self.test()
         return self.explain()

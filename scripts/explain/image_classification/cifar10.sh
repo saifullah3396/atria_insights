@@ -23,17 +23,15 @@
 #     data_module.evaluation_dataloader_builder.batch_size=4 \
 #     $@ # task_module.checkpoint=/home/aletheia/work/phd_projects/insightx/output/atria_trainer/Cifar10HFDataset/resnet50/2024-10-31/23-58-14/checkpoints/checkpoint_10.pt \
 
-#!/bin/bash -l
+SEARCH_PATHS='[pkg://atria_insights/conf,pkg://atria_ml/conf,pkg://atria_models/conf,pkg://atria_transforms/conf,pkg://atria_metrics/conf,pkg://atria_datasets/conf]'
 
 uv run python -W ignore \
     -m atria_ml.task_pipelines.run \
-    hydra.searchpath=[pkg://atria_ml/conf,pkg://atria_insights/conf,pkg://torchxai/conf,./conf/] \
+    hydra.searchpath=$SEARCH_PATHS \
     task_pipeline=explainer/image_classification \
     dataset@data_pipeline.dataset=cifar10/default \
     explainer_pipeline.model_pipeline.model.model_name=resnet50 \
-    explainer_pipeline.explainer=grad/saliency \
     data_pipeline.dataloader_config.eval_batch_size=64 \
     data_pipeline.dataloader_config.num_workers=8 \
-    experiment_name=eval_tobacco3482_resnet50 \
-    test_checkpoint=/mnt/hephaistos/projects/atria_agent/atria/atria_ml/outputs/trainer/image_classification/train_tobacco3482_resnet50/checkpoints/checkpoint_100.pt \
+    experiment_name=explain_cifar10_resnet50 \
     $@
