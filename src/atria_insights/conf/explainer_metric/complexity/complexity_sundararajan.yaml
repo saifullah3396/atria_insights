@@ -2,7 +2,7 @@ _partial_: false
 metric_func:
   _target_: torchxai.metrics.complexity.complexity_sundararajan.complexity_sundararajan
   _partial_: true
-  eps: 1.0e-05
+  eps: 0.001
   normalize_attribution: true
   is_multi_target: false
   return_dict: false

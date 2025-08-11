@@ -9,11 +9,11 @@ metric_func:
   perturb_func:
     _target_: torchxai.metrics._utils.perturbation.default_fixed_baseline_perturb_func
     _partial_: false
-  n_perturb_samples: 10
-  max_examples_per_batch: null
+  n_perturb_samples: 200
+  max_examples_per_batch: 100
   frozen_features: null
-  percent_features_perturbed: 0.1
-  show_progress: false
+  percent_features_perturbed: 0.2
+  show_progress: true
   is_multi_target: false
   return_intermediate_results: false
   return_dict: false

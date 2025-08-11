@@ -10,9 +10,9 @@ metric_func:
   perturb_func:
     _target_: torchxai.metrics._utils.perturbation.default_infidelity_perturb_fn
     _partial_: false
-    noise_scale: 0.003
-  n_perturb_samples: 10
-  max_examples_per_batch: null
+    noise_scale: 0.1
+  n_perturb_samples: 200
+  max_examples_per_batch: 100
   normalize: true
   is_multi_target: false
   return_dict: false

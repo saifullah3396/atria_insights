@@ -45,6 +45,7 @@ EXPLAINER_METRIC.register(
         input_invariance,
         populate_full_signature=True,
         zen_partial=True,
+        return_intermediate_results=False,
     ),
 )(TorchXAIMetric)
 EXPLAINER_METRIC.register(
@@ -58,7 +59,13 @@ EXPLAINER_METRIC.register(
             populate_full_signature=True,
             zen_partial=False,
         ),
-        max_features_processed_per_batch=1000,
+        return_intermediate_results=False,
+        n_perturbations_per_feature=10,
+        max_features_processed_per_batch=100,
+        percentage_feature_removal_per_step=0.0,
+        zero_attribution_threshold=1.0e-05,
+        zero_variance_threshold=1.0e-05,
+        use_percentage_attribution_threshold=True,
     ),
 )(TorchXAIMetric)
 
@@ -71,6 +78,7 @@ EXPLAINER_METRIC.register(
         zen_partial=True,
     ),
 )(TorchXAIMetric)
+
 EXPLAINER_METRIC.register(
     name="complexity/" + complexity_entropy_feature_grouped.__name__,
     metric_func=builds(
@@ -79,22 +87,27 @@ EXPLAINER_METRIC.register(
         zen_partial=True,
     ),
 )(TorchXAIMetric)
+
 EXPLAINER_METRIC.register(
     name="complexity/" + complexity_sundararajan.__name__,
     metric_func=builds(
         complexity_sundararajan,
         populate_full_signature=True,
         zen_partial=True,
+        eps=1.0e-3,
     ),
 )(TorchXAIMetric)
+
 EXPLAINER_METRIC.register(
     name="complexity/" + complexity_sundararajan_feature_grouped.__name__,
     metric_func=builds(
         complexity_sundararajan_feature_grouped,
         populate_full_signature=True,
         zen_partial=True,
+        eps=1.0e-3,
     ),
 )(TorchXAIMetric)
+
 EXPLAINER_METRIC.register(
     name="complexity/" + effective_complexity.__name__,
     metric_func=builds(
@@ -106,9 +119,16 @@ EXPLAINER_METRIC.register(
             populate_full_signature=True,
             zen_partial=False,
         ),
-        max_features_processed_per_batch=1000,
+        max_features_processed_per_batch=100,
+        n_perturbations_per_feature=1,
+        percentage_feature_removal_per_step=0.01,  # 1% of the features will be removed together in each step
+        zero_variance_threshold=1.0e-01,
+        show_progress=True,
+        return_ratio=True,
+        return_intermediate_results=False,
     ),
 )(TorchXAIMetric)
+
 EXPLAINER_METRIC.register(
     name="complexity/" + sparseness.__name__,
     metric_func=builds(
@@ -117,6 +137,7 @@ EXPLAINER_METRIC.register(
         zen_partial=True,
     ),
 )(TorchXAIMetric)
+
 EXPLAINER_METRIC.register(
     name="complexity/" + sparseness_feature_grouped.__name__,
     metric_func=builds(
@@ -134,25 +155,31 @@ EXPLAINER_METRIC.register(
         populate_full_signature=True,
         zen_partial=True,
         max_features_processed_per_batch=100,
-        total_features_perturbed=100,
+        total_feature_bins=100,
         n_random_perms=5,
         show_progress=True,
     ),
 )(TorchXAIMetric)
 
-EXPLAINER_METRIC.register(
-    name="faithfulness/" + faithfulness_corr.__name__,
-    metric_func=builds(
-        faithfulness_corr,
-        populate_full_signature=True,
-        zen_partial=True,
-        perturb_func=builds(
-            default_fixed_baseline_perturb_func,
+for n_features_perturbed in [2, 4, 6]:
+    EXPLAINER_METRIC.register(
+        name="faithfulness/" + faithfulness_corr.__name__ + f"_{n_features_perturbed}",
+        metric_func=builds(
+            faithfulness_corr,
             populate_full_signature=True,
-            zen_partial=False,
+            zen_partial=True,
+            perturb_func=builds(
+                default_fixed_baseline_perturb_func,
+                populate_full_signature=True,
+                zen_partial=False,
+            ),
+            return_intermediate_results=False,
+            max_examples_per_batch=100,
+            n_perturb_samples=200,
+            percent_features_perturbed=n_features_perturbed / 10,
+            show_progress=True,
         ),
-    ),
-)(TorchXAIMetric)
+    )(TorchXAIMetric)
 
 EXPLAINER_METRIC.register(
     name="faithfulness/" + faithfulness_estimate.__name__,
@@ -160,7 +187,10 @@ EXPLAINER_METRIC.register(
         faithfulness_estimate,
         populate_full_signature=True,
         zen_partial=True,
-        max_features_processed_per_batch=1000,
+        max_features_processed_per_batch=100,
+        show_progress=True,
+        percentage_feature_removal_per_step=0.01,  # 1% of the features will be removed together in each step
+        return_intermediate_results=False,
     ),
 )(TorchXAIMetric)
 
@@ -174,7 +204,10 @@ EXPLAINER_METRIC.register(
             default_infidelity_perturb_fn,
             populate_full_signature=True,
             zen_partial=False,
+            noise_scale=0.1,
         ),
+        max_examples_per_batch=100,
+        n_perturb_samples=200,
     ),
 )(TorchXAIMetric)
 
@@ -186,10 +219,6 @@ EXPLAINER_METRIC.register(
         zen_partial=True,
         max_features_processed_per_batch=100,
         percentage_feature_removal_per_step=0.01,  # 1% of the features will be removed together in each step
-        zero_attribution_threshold=1.0e-03,
-        zero_variance_threshold=1.0e-01,
-        use_percentage_attribution_threshold=True,
-        return_ratio=True,
         show_progress=True,
     ),
 )(TorchXAIMetric)
@@ -218,5 +247,8 @@ EXPLAINER_METRIC.register(
         populate_full_signature=True,
         zen_partial=True,
         max_examples_per_batch=100,
+        perturb_radius=0.02,
+        n_perturb_samples=10,
+        norm_ord="fro",
     ),
 )(TorchXAIMetric)

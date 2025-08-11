@@ -1,6 +1,6 @@
 _partial_: false
 metric_func:
-  _target_: torchxai.metrics.complexity.effective_complexity.effective_complexity
+  _target_: torchxai.metrics.faithfulness.faithfulness_corr.faithfulness_corr
   _partial_: true
   baselines: null
   feature_mask: null
@@ -9,14 +9,12 @@ metric_func:
   perturb_func:
     _target_: torchxai.metrics._utils.perturbation.default_fixed_baseline_perturb_func
     _partial_: false
-  n_perturbations_per_feature: 1
-  max_features_processed_per_batch: 100
-  percentage_feature_removal_per_step: 0.01
+  n_perturb_samples: 200
+  max_examples_per_batch: 100
   frozen_features: null
-  zero_variance_threshold: 0.1
-  return_ratio: true
-  is_multi_target: false
+  percent_features_perturbed: 0.6
   show_progress: true
+  is_multi_target: false
   return_intermediate_results: false
   return_dict: false
 output_transform:

@@ -1,15 +1,21 @@
 _partial_: false
 metric_func:
-  _target_: torchxai.metrics.faithfulness.sensitivity_n.sensitivity_n
+  _target_: torchxai.metrics.faithfulness.faithfulness_corr.faithfulness_corr
   _partial_: true
+  baselines: null
   feature_mask: null
   additional_forward_args: null
   target: null
-  n_perturb_samples: 10
-  max_examples_per_batch: null
+  perturb_func:
+    _target_: torchxai.metrics._utils.perturbation.default_fixed_baseline_perturb_func
+    _partial_: false
+  n_perturb_samples: 200
+  max_examples_per_batch: 100
   frozen_features: null
-  normalize: false
+  percent_features_perturbed: 0.4
+  show_progress: true
   is_multi_target: false
+  return_intermediate_results: false
   return_dict: false
 output_transform:
   path: atria_insights.metrics.torchxai_metric.default_output_transform

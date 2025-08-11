@@ -13,7 +13,9 @@ _METRICS_DEFAULTS = [
 
     # Faithfulness metrics
     {"/explainer_metric@explainer_metrics.aopc": "faithfulness/aopc"},
-    {"/explainer_metric@explainer_metrics.faithfulness_corr": "faithfulness/faithfulness_corr"},
+    {"/explainer_metric@explainer_metrics.faithfulness_corr_2": "faithfulness/faithfulness_corr_2"},
+    {"/explainer_metric@explainer_metrics.faithfulness_corr_4": "faithfulness/faithfulness_corr_4"},
+    {"/explainer_metric@explainer_metrics.faithfulness_corr_6": "faithfulness/faithfulness_corr_6"},
     {"/explainer_metric@explainer_metrics.faithfulness_estimate": "faithfulness/faithfulness_estimate"},
     {"/explainer_metric@explainer_metrics.infidelity": "faithfulness/infidelity"},
     {"/explainer_metric@explainer_metrics.monotonicity": "faithfulness/monotonicity"},

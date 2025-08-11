@@ -37,5 +37,5 @@ if __name__ == "__main__":
             "task_pipeline",
             "engine",
         ],
-        delete_existing=False,
+        delete_existing=True,
     )

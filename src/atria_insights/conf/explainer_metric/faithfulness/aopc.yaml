@@ -5,13 +5,13 @@ metric_func:
   feature_mask: null
   additional_forward_args: null
   target: null
-  max_features_processed_per_batch: 1000
+  max_features_processed_per_batch: 100
   total_feature_bins: 100
   frozen_features: null
-  n_random_perms: 10
+  n_random_perms: 5
   seed: null
   is_multi_target: false
-  show_progress: false
+  show_progress: true
   return_intermediate_results: false
   return_dict: false
 output_transform:
