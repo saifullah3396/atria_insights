@@ -35,13 +35,15 @@ from atria_registry.module_registry import ModuleRegistry
 
 from atria_insights.registry.module_registry import init_registry
 from atria_insights.registry.registry_groups import (
+    ExplainerMetricRegistryGroup,
+    ExplainerPipelineRegistryGroup,
     ExplainerRegistryGroup,
-    ExplMetricsRegistryGroup,
 )
 
 init_registry()
 
-EXPL_METRIC: ExplMetricsRegistryGroup = ModuleRegistry().EXPL_METRIC
+EXPLAINER_METRIC: ExplainerMetricRegistryGroup = ModuleRegistry().EXPLAINER_METRIC
 EXPLAINER: ExplainerRegistryGroup = ModuleRegistry().EXPLAINER
+EXPLAINER_PIPELINE: ExplainerPipelineRegistryGroup = ModuleRegistry().EXPLAINER_PIPELINE
 
-__all__ = ["EXPL_METRIC", "EXPLAINER"]
+__all__ = ["EXPLAINER_METRIC", "EXPLAINER", "EXPLAINER_PIPELINE"]

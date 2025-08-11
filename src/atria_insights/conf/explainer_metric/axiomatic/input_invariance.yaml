@@ -1,9 +1,9 @@
 _partial_: false
 metric_func:
-  _target_: torchxai.metrics.complexity.complexity_entropy.complexity_entropy_feature_grouped
+  _target_: torchxai.metrics.axiomatic.input_invariance.input_invariance
   _partial_: true
-  feature_mask: null
   is_multi_target: false
+  return_intermediate_results: false
   return_dict: false
 output_transform:
   path: atria_insights.metrics.torchxai_metric.default_output_transform
@@ -12,4 +12,4 @@ device: cpu
 progress_bar: null
 attached_name: null
 module: atria_insights.metrics.torchxai_metric.TorchXAIMetric
-_target_: atria_insights.registry.registry_groups.ExplMetricBuilder
+_target_: atria_insights.registry.registry_groups.ExplainerMetricBuilder

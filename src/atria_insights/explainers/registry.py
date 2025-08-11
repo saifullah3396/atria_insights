@@ -4,6 +4,7 @@ from torchxai.explainers._grad.deeplift_shap import DeepLiftShapExplainer  # noq
 from torchxai.explainers._grad.gradient_shap import GradientShapExplainer  # noqa
 from torchxai.explainers._grad.guided_backprop import GuidedBackpropExplainer  # noqa
 from torchxai.explainers._grad.input_x_gradient import InputXGradientExplainer  # noqa
+from torchxai.explainers._grad.integrated_gradients import IntegratedGradientsExplainer  # noqa
 from torchxai.explainers._grad.saliency import SaliencyExplainer  # noqa
 
 # _perturbation
@@ -25,7 +26,7 @@ EXPLAINER.register(name="grad/deeplift_shap")(DeepLiftShapExplainer)
 EXPLAINER.register(name="grad/gradient_shap")(GradientShapExplainer)
 EXPLAINER.register(name="grad/guided_backprop")(GuidedBackpropExplainer)
 EXPLAINER.register(name="grad/input_x_gradient")(InputXGradientExplainer)
-EXPLAINER.register(name="grad/integrated_gradients")
+EXPLAINER.register(name="grad/integrated_gradients")(IntegratedGradientsExplainer)
 
 # perturbation
 EXPLAINER.register(name="perturbation/feature_ablation")(FeatureAblationExplainer)

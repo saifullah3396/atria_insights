@@ -45,7 +45,6 @@ dependencies = [
     # "torchxai @ git+https://github.com/saifullah3396/torchxai.git@1.0.0",
     # "atria @ git+https://git.opendfki.de/saifullah/atria.git@1.0.0"
     "atria-ml",
-    "atria-models",
     "lime>=0.2.0.1",
     "torchxai",
 ]
@@ -74,9 +73,8 @@ pythonpath = [
 egg_base = "."
 
 [tool.uv.sources]
-atria-ml = { path = "../atria_ml", editable = true }
 torchxai = { git = "https://github.com/saifullah3396/torchxai.git", branch = "atria-bridge" }
-atria-models = { path = "https://github.com/saifullah3396/atria_models" }
+atria-ml = { git = "https://github.com/saifullah3396/atria_ml.git", branch = "hub_evaluator" }
 
 [project.scripts]
 "insightx.explain" = "insightx.task_runners.model_explainer:app"

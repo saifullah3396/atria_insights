@@ -1,15 +1,21 @@
 _partial_: false
 metric_func:
-  _target_: torchxai.metrics.faithfulness.sensitivity_n.sensitivity_n
+  _target_: torchxai.metrics.faithfulness.faithfulness_corr.faithfulness_corr
   _partial_: true
+  baselines: null
   feature_mask: null
   additional_forward_args: null
   target: null
+  perturb_func:
+    _target_: torchxai.metrics._utils.perturbation.default_fixed_baseline_perturb_func
+    _partial_: false
   n_perturb_samples: 10
   max_examples_per_batch: null
   frozen_features: null
-  normalize: false
+  percent_features_perturbed: 0.1
+  show_progress: false
   is_multi_target: false
+  return_intermediate_results: false
   return_dict: false
 output_transform:
   path: atria_insights.metrics.torchxai_metric.default_output_transform
@@ -18,4 +24,4 @@ device: cpu
 progress_bar: null
 attached_name: null
 module: atria_insights.metrics.torchxai_metric.TorchXAIMetric
-_target_: atria_insights.registry.registry_groups.ExplMetricBuilder
+_target_: atria_insights.registry.registry_groups.ExplainerMetricBuilder

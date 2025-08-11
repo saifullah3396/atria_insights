@@ -1,7 +1,9 @@
 _partial_: false
 metric_func:
-  _target_: torchxai.metrics.complexity.sparseness.sparseness
+  _target_: torchxai.metrics.complexity.complexity_sundararajan.complexity_sundararajan
   _partial_: true
+  eps: 1.0e-05
+  normalize_attribution: true
   is_multi_target: false
   return_dict: false
 output_transform:
@@ -11,4 +13,4 @@ device: cpu
 progress_bar: null
 attached_name: null
 module: atria_insights.metrics.torchxai_metric.TorchXAIMetric
-_target_: atria_insights.registry.registry_groups.ExplMetricBuilder
+_target_: atria_insights.registry.registry_groups.ExplainerMetricBuilder

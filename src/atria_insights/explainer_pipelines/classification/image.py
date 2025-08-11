@@ -1,35 +1,53 @@
-from typing import Dict
+from typing import Any, Dict
 
 import torch
 from atria_core.logger.logger import get_logger
 from atria_core.types.data_instance.base import BaseDataInstance
 from atria_core.types.data_instance.document_instance import DocumentInstance
 from atria_core.types.data_instance.image_instance import ImageInstance
-from atria_models.pipelines.classification.image import ImageClassificationPipeline
 
 from atria_insights.explainer_pipelines.atria_explainer_pipeline import (
     AtriaExplainerPipeline,
+    AtriaExplainerPipelineConfig,
 )
+from atria_insights.explainer_pipelines.defaults import _METRICS_DEFAULTS
 from atria_insights.explainer_pipelines.utilities import _get_first_layer
+from atria_insights.registry import EXPLAINER_PIPELINE
 from atria_insights.utilities.containers import ExplainerInputs, ModelInputs
 from atria_insights.utilities.image import _create_segmentation_fn
 
 logger = get_logger(__name__)
 
 
+class ImageClassificationExplainerPipelineConfig(AtriaExplainerPipelineConfig):
+    segmentation_fn: str = "grid"
+    segmentation_fn_kwargs: Dict[str, Any] = {}  # noqa: F821
+
+
+@EXPLAINER_PIPELINE.register(
+    "image_classification",
+    defaults=[
+        "_self_",
+        {"/model_pipeline@model_pipeline": "image_classification"},
+        {"/explainer@explainer": "grad/saliency"},
+    ]
+    + _METRICS_DEFAULTS,
+)
 class ImageClassificationExplainerPipeline(AtriaExplainerPipeline):
+    __config_cls__ = ImageClassificationExplainerPipelineConfig
+
     def __init__(
         self,
-        model_pipeline: ImageClassificationPipeline,
-        segmentation_fn: str = "grid",
-        is_multi_target: bool = False,
+        *args,
+        **kwargs: Any,
     ):
-        assert isinstance(model_pipeline, ImageClassificationPipeline), (
-            "Model pipeline must be an instance of ImageClassificationPipeline"
+        super().__init__(
+            *args,
+            **kwargs,
         )
-        super().__init__(model_pipeline=model_pipeline, is_multi_target=is_multi_target)
         self._segmentation_fn = _create_segmentation_fn(
-            segmentation_type=segmentation_fn
+            segmentation_type=self.config.segmentation_fn,
+            **self.config.segmentation_fn_kwargs,
         )
 
     def _prepare_explanation_step_inputs(

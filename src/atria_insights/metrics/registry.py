@@ -28,10 +28,10 @@ from torchxai.metrics.complexity.complexity_sundararajan import (
 from torchxai.metrics.complexity.sparseness import sparseness_feature_grouped
 
 from atria_insights.metrics.torchxai_metric import TorchXAIMetric
-from atria_insights.registry import EXPL_METRIC
+from atria_insights.registry import EXPLAINER_METRIC
 
 # axiomatic
-EXPL_METRIC.register(
+EXPLAINER_METRIC.register(
     name="axiomatic/" + completeness.__name__,
     metric_func=builds(
         completeness,
@@ -39,7 +39,7 @@ EXPL_METRIC.register(
         zen_partial=True,
     ),
 )(TorchXAIMetric)
-EXPL_METRIC.register(
+EXPLAINER_METRIC.register(
     name="axiomatic/" + input_invariance.__name__,
     metric_func=builds(
         input_invariance,
@@ -47,7 +47,7 @@ EXPL_METRIC.register(
         zen_partial=True,
     ),
 )(TorchXAIMetric)
-EXPL_METRIC.register(
+EXPLAINER_METRIC.register(
     name="axiomatic/" + monotonicity_corr_and_non_sens.__name__,
     metric_func=builds(
         monotonicity_corr_and_non_sens,
@@ -62,7 +62,7 @@ EXPL_METRIC.register(
 )(TorchXAIMetric)
 
 # complexity
-EXPL_METRIC.register(
+EXPLAINER_METRIC.register(
     name="complexity/ " + complexity_entropy.__name__,
     metric_func=builds(
         complexity_entropy,
@@ -70,7 +70,7 @@ EXPL_METRIC.register(
         zen_partial=True,
     ),
 )(TorchXAIMetric)
-EXPL_METRIC.register(
+EXPLAINER_METRIC.register(
     name="complexity/ " + complexity_entropy_feature_grouped.__name__,
     metric_func=builds(
         complexity_entropy_feature_grouped,
@@ -78,7 +78,7 @@ EXPL_METRIC.register(
         zen_partial=True,
     ),
 )(TorchXAIMetric)
-EXPL_METRIC.register(
+EXPLAINER_METRIC.register(
     name="complexity/ " + complexity_sundararajan.__name__,
     metric_func=builds(
         complexity_sundararajan,
@@ -86,7 +86,7 @@ EXPL_METRIC.register(
         zen_partial=True,
     ),
 )(TorchXAIMetric)
-EXPL_METRIC.register(
+EXPLAINER_METRIC.register(
     name="complexity/ " + complexity_sundararajan_feature_grouped.__name__,
     metric_func=builds(
         complexity_sundararajan_feature_grouped,
@@ -94,7 +94,7 @@ EXPL_METRIC.register(
         zen_partial=True,
     ),
 )(TorchXAIMetric)
-EXPL_METRIC.register(
+EXPLAINER_METRIC.register(
     name="complexity/ " + effective_complexity.__name__,
     metric_func=builds(
         effective_complexity,
@@ -107,7 +107,7 @@ EXPL_METRIC.register(
         ),
     ),
 )(TorchXAIMetric)
-EXPL_METRIC.register(
+EXPLAINER_METRIC.register(
     name="complexity/ " + sparseness.__name__,
     metric_func=builds(
         sparseness,
@@ -115,7 +115,7 @@ EXPL_METRIC.register(
         zen_partial=True,
     ),
 )(TorchXAIMetric)
-EXPL_METRIC.register(
+EXPLAINER_METRIC.register(
     name="complexity/ " + sparseness_feature_grouped.__name__,
     metric_func=builds(
         sparseness_feature_grouped,
@@ -125,7 +125,7 @@ EXPL_METRIC.register(
 )(TorchXAIMetric)
 
 # faithfulness
-EXPL_METRIC.register(
+EXPLAINER_METRIC.register(
     name="faithfulness/" + aopc.__name__,
     metric_func=builds(
         aopc,
@@ -134,7 +134,7 @@ EXPL_METRIC.register(
     ),
 )(TorchXAIMetric)
 
-EXPL_METRIC.register(
+EXPLAINER_METRIC.register(
     name="faithfulness/" + faithfulness_corr.__name__,
     metric_func=builds(
         faithfulness_corr,
@@ -148,7 +148,7 @@ EXPL_METRIC.register(
     ),
 )(TorchXAIMetric)
 
-EXPL_METRIC.register(
+EXPLAINER_METRIC.register(
     name="faithfulness/" + faithfulness_estimate.__name__,
     metric_func=builds(
         faithfulness_estimate,
@@ -157,7 +157,7 @@ EXPL_METRIC.register(
     ),
 )(TorchXAIMetric)
 
-EXPL_METRIC.register(
+EXPLAINER_METRIC.register(
     name="faithfulness/" + infidelity.__name__,
     metric_func=builds(
         infidelity,
@@ -171,7 +171,7 @@ EXPL_METRIC.register(
     ),
 )(TorchXAIMetric)
 
-EXPL_METRIC.register(
+EXPLAINER_METRIC.register(
     name="faithfulness/" + monotonicity.__name__,
     metric_func=builds(
         monotonicity,
@@ -180,7 +180,7 @@ EXPL_METRIC.register(
     ),
 )(TorchXAIMetric)
 
-EXPL_METRIC.register(
+EXPLAINER_METRIC.register(
     name="faithfulness/" + sensitivity_n.__name__,
     metric_func=builds(
         sensitivity_n,
@@ -190,7 +190,7 @@ EXPL_METRIC.register(
 )(TorchXAIMetric)
 
 # robustness
-EXPL_METRIC.register(
+EXPLAINER_METRIC.register(
     name="robustness/" + sensitivity_max_and_avg.__name__,
     metric_func=builds(
         sensitivity_max_and_avg,

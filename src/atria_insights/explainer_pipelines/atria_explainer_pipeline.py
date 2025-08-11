@@ -1,18 +1,29 @@
 from __future__ import annotations
 
-from abc import abstractmethod
-from typing import TYPE_CHECKING, Dict, List, OrderedDict, Union
+from abc import ABC, abstractmethod
+from functools import cached_property
+from typing import TYPE_CHECKING, Any, Dict, List, OrderedDict, Union
 
-from atria_core.logger.logger import get_logger
+from atria_core.logger import get_logger
+from atria_core.utilities.repr import RepresentationMixin
+from pydantic import BaseModel, ConfigDict
 
 from atria_insights.explainer_pipelines.utilities import _explainer_forward
+from atria_insights.registry.registry_groups import (
+    ExplainerBuilder,
+    ExplainerMetricBuilder,
+)
 
 if TYPE_CHECKING:
     from functools import partial
 
     import torch
-    from atria_core.types.data_instance.base import BaseDataInstance
+    from atria_core.types import (
+        BaseDataInstance,
+        DatasetMetadata,
+    )
     from atria_models.pipelines.atria_model_pipeline import AtriaModelPipeline
+    from ignite.contrib.handlers import TensorboardLogger
     from ignite.handlers import ProgressBar
     from torchxai.explainers import Explainer
 
@@ -21,48 +32,129 @@ if TYPE_CHECKING:
         ExplainerStepOutput,
     )
 
+
 logger = get_logger(__name__)
 
 
-class AtriaExplainerPipeline:
-    def __init__(
-        self,
-        model_pipeline: AtriaModelPipeline,
-        is_multi_target: bool = False,
-    ):
-        self._model_pipeline = model_pipeline
-        self._is_multi_target = is_multi_target
-        self._progress_bar = None
+class AtriaExplainerPipelineConfig(BaseModel):
+    """
+    Configuration model for AtriaExplainerPipeline.
 
-    def attach_progress_bar(self, progress_bar: ProgressBar | None) -> None:
-        self._progress_bar = progress_bar
+    This model is used to define the configuration parameters for the AtriaExplainerPipeline.
+    It includes fields for model, checkpoint configurations, metric configurations, and runtime transforms.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
+
+    pipeline_name: str | None = None
+    config_name: str = "default"
+    model_pipeline: AtriaModelPipeline | None = None
+    explainer: ExplainerBuilder | None = None
+    explainer_metrics: dict[str, ExplainerMetricBuilder] | None = None
+    is_multi_target: bool = False
+
+
+class ExplainerPipelineConfigMixin:
+    __config_cls__: type[AtriaExplainerPipelineConfig]
+
+    def __init__(self, **kwargs):
+        config_cls = getattr(self.__class__, "__config_cls__", None)
+        assert issubclass(config_cls, AtriaExplainerPipelineConfig), (
+            f"{self.__class__.__name__} must define a __config_cls__ attribute "
+            "that is a subclass of ModelPipelineConfig."
+        )
+        self._config = config_cls(**kwargs)
+        if self._config.pipeline_name is None:
+            self._config.pipeline_name = self.__class__.__name__.lower()
+        super().__init__()
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        # Validate presence of Config at class definition time
+        if not hasattr(cls, "__config_cls__"):
+            raise TypeError(
+                f"{cls.__name__} must define a nested `__config_cls__` class."
+            )
+
+        if not issubclass(cls.__config_cls__, AtriaExplainerPipelineConfig):
+            raise TypeError(
+                f"{cls.__name__}.Config must subclass pydantic.ModelPipelineConfig. Got {cls.__config_cls__} instead."
+            )
+
+    @cached_property
+    def config(self) -> AtriaExplainerPipelineConfig:
+        return self._config
+
+
+class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMixin):
+    __config_cls__ = AtriaExplainerPipelineConfig
+
+    def __init__(self, **kwargs: Any):
+        super().__init__(**kwargs)
+        self._progress_bar: ProgressBar | None = None
 
     @property
     def model_pipeline(self) -> AtriaModelPipeline:
-        return self._model_pipeline
+        return self._config.model_pipeline
 
-    @staticmethod
-    def from_model_pipeline(
-        model_pipeline: AtriaModelPipeline,
-    ) -> AtriaExplainerPipeline:
+    @model_pipeline.setter
+    def model_pipeline(self, value: AtriaModelPipeline) -> None:
+        self._config.model_pipeline = value
+
+    def attach_progress_bar(self, progress_bar: ProgressBar) -> None:
         """
-        Factory method to create an instance of AtriaExplanationPipeline from a model pipeline.
+        Attach a progress bar to the explainer pipeline.
+
+        Args:
+            progress_bar (ProgressBar): The progress bar to attach.
         """
+        self._progress_bar = progress_bar
 
-        from atria_models.pipelines.classification.image import (
-            ImageClassificationPipeline,
+    def build(
+        self,
+        dataset_metadata: DatasetMetadata,
+        tb_logger: TensorboardLogger | None = None,
+    ) -> None:
+        """
+        Build the explainer pipeline with the provided configuration.
+        """
+        self.model_pipeline = self.model_pipeline.build(
+            dataset_metadata=dataset_metadata,
+            tb_logger=tb_logger,
         )
+        return self
 
-        from atria_insights.explainer_pipelines.image_classification import (
-            ImageClassificationExplainerPipeline,
-        )
+    # @staticmethod
+    # def from_model_pipeline(
+    #     model_pipeline: AtriaModelPipeline,
+    #     explainer: ExplainerBuilder | None = None,
+    #     explainer_metrics: dict[str, ExplainerMetricBuilder] | None = None,
+    #     **kwargs: Any,
+    # ) -> AtriaExplainerPipeline:
+    #     """
+    #     Factory method to create an instance of AtriaExplanationPipeline from a model pipeline.
+    #     """
 
-        if isinstance(model_pipeline, ImageClassificationPipeline):
-            return ImageClassificationExplainerPipeline(model_pipeline)
-        else:
-            raise NotImplementedError(
-                f"Explanation pipeline for {type(model_pipeline)} is not implemented."
-            )
+    #     from atria_models.pipelines.classification.image import (
+    #         ImageClassificationPipeline,
+    #     )
+
+    #     from atria_insights.explainer_pipelines.classification.image import (
+    #         ImageClassificationExplainerPipeline,
+    #     )
+
+    #     if isinstance(model_pipeline, ImageClassificationPipeline):
+    #         return ImageClassificationExplainerPipeline(
+    #             model_pipeline=model_pipeline,
+    #             explainer=explainer,
+    #             explainer_metric=explainer_metrics,
+    #             **kwargs,
+    #         )
+    #     else:
+    #         raise NotImplementedError(
+    #             f"Explanation pipeline for {type(model_pipeline)} is not implemented."
+    #         )
 
     def explanation_step(
         self,
@@ -110,16 +202,6 @@ class AtriaExplainerPipeline:
             batch=batch,
             explainer_step_inputs=explainer_step_inputs,
             explanations=explanations,
-        )
-
-        # perform explainer forward
-        explanations, reduced_explanations = self._explainer_forward(
-            batch=batch,
-            explainer=explainer,
-            explainer_args=explainer_step_inputs,
-            target=target,
-            train_baselines=train_baselines,
-            model_outputs=model_outputs,
         )
 
         # prepare step outputs
