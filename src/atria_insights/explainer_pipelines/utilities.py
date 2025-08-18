@@ -1,5 +1,4 @@
 from collections import OrderedDict
-from typing import Dict, List, Optional, Union
 
 import torch
 import tqdm
@@ -59,8 +58,8 @@ def _generate_word_level_targets(
     predicted_token_labels_per_sample,
     word_ids_per_sample,
     percent_other_labels_kept: float = 0.0,
-    max_targets: Optional[int] = None,
-    dataset_labels: List[str] = 0,
+    max_targets: int | None = None,
+    dataset_labels: list[str] = 0,
     seed: int = 0,
 ):
     # find the tokens that are either predicted as Other or have ground-truth of other besides the padding labels
@@ -127,15 +126,15 @@ def _generate_word_level_targets(
     return targets, target_word_ids
 
 
-def _map_inputs_to_ordered_dict(inputs: Dict[str, torch.Tensor], keys):
+def _map_inputs_to_ordered_dict(inputs: dict[str, torch.Tensor], keys):
     return OrderedDict({key: inputs[key] for key in keys})
 
 
 def _prepare_explainer_input_kwargs(
     explainer: ExplainerBuilder,
     explainer_step_inputs: ExplainerStepInputs,
-    target: Union[torch.Tensor, List[torch.Tensor]],
-    train_baselines: Optional[Dict[str, torch.Tensor]] = None,
+    target: torch.Tensor | list[torch.Tensor],
+    train_baselines: dict[str, torch.Tensor] | None = None,
 ):
     from atria_core.utilities.common import _get_possible_args
 
@@ -169,7 +168,10 @@ def _prepare_explainer_input_kwargs(
         explainer_input_kwargs["feature_mask"] = tuple(
             explainer_step_inputs.feature_masks.values()
         )
-    if "frozen_features" in possible_args:
+    if (
+        "frozen_features" in possible_args
+        and explainer_step_inputs.frozen_features is not None
+    ):
         assert (
             len(explainer_step_inputs.frozen_features)
             == list(explainer_step_inputs.model_inputs.explained_inputs.values())[
@@ -192,7 +194,7 @@ def _explainer_forward(
     explainer_step_inputs: ExplainerStepInputs,
     target: torch.Tensor,
     iterative_computation: bool = False,
-    train_baselines: Optional[Dict[str, torch.Tensor]] = None,
+    train_baselines: dict[str, torch.Tensor] | None = None,
 ):
     # prepare explainer input kwargs
     explainer_input_kwargs = _prepare_explainer_input_kwargs(
@@ -241,12 +243,7 @@ def _explainer_forward(
             # example target 0 -> (explanation_embeddings, explanation_position_embeddings, ...)
             # example target 1 -> (explanation_embeddings, explanation_position_embeddings, ...)
             if len(current_explainer_kwargs["target"]) == 0:
-                explanations.append(
-                    {
-                        input_key: None
-                        for input_key in explainer_step_inputs.inputs.keys()
-                    }
-                )
+                explanations.append(dict.fromkeys(explainer_step_inputs.inputs.keys()))
                 continue
 
             if iterative_computation:

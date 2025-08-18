@@ -1,7 +1,7 @@
 import inspect
 import time
+from collections.abc import Callable
 from functools import partial
-from typing import Callable, Optional
 
 import torch
 from atria_core.logger.logger import get_logger
@@ -39,8 +39,8 @@ class TorchXAIMetric(Metric):
         explainer: Explainer,
         output_transform=default_output_transform,
         device="cpu",
-        progress_bar: Optional[ProgressBar] = None,
-        attached_name: Optional[str] = None,
+        progress_bar: ProgressBar | None = None,
+        attached_name: str | None = None,
     ):
         self._attached_name = attached_name
         self._metric_func = metric_func
@@ -59,13 +59,10 @@ class TorchXAIMetric(Metric):
     def reset(self):
         self._metric_outputs = []
         self._num_examples = 0
-        self._result: Optional[float] = None
+        self._result: float | None = None
         super().reset()
 
-    def _prepare_metric_kwargs(
-        self,
-        output: ExplainerStepOutput,
-    ):
+    def _prepare_metric_kwargs(self, output: ExplainerStepOutput):
         # if target is a list of list we assume it is a multi-target scenario with varying output sizes per sample
         # in which case we need to iterate over the samples in the batch
         is_target_list = isinstance(output.target, list)
@@ -141,7 +138,7 @@ class TorchXAIMetric(Metric):
             else None,
             return_intermediate_results=True,
             return_dict=True,
-            show_progress=False,
+            show_progress=True,
         )
 
         possible_args = set(inspect.signature(self._metric_func).parameters)
@@ -279,8 +276,7 @@ class TorchXAIMetric(Metric):
                     continue
                 metric_output_per_sample = self._metric_func(**metric_kwargs_per_sample)
                 metric_output_per_sample = apply_to_tensor(
-                    metric_output_per_sample,
-                    lambda tensor: tensor.detach().cpu(),
+                    metric_output_per_sample, lambda tensor: tensor.detach().cpu()
                 )
                 metric_output.append(metric_output_per_sample)
             metric_output = {
@@ -289,6 +285,7 @@ class TorchXAIMetric(Metric):
             }
         else:
             with autocast(enabled=True):
+                logger.info(f"Computing metric: {self._metric_func}")
                 metric_output = self._metric_func(**metric_kwargs)
             metric_output = apply_to_tensor(
                 metric_output, lambda tensor: tensor.detach().cpu()

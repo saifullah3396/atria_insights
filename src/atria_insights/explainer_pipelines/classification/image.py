@@ -1,10 +1,11 @@
-from typing import Any, Dict
+from typing import Any
 
 import torch
 from atria_core.logger.logger import get_logger
 from atria_core.types.data_instance.base import BaseDataInstance
 from atria_core.types.data_instance.document_instance import DocumentInstance
 from atria_core.types.data_instance.image_instance import ImageInstance
+from atria_registry.module_builder import ModuleBuilder
 
 from atria_insights.explainer_pipelines.atria_explainer_pipeline import (
     AtriaExplainerPipeline,
@@ -14,14 +15,12 @@ from atria_insights.explainer_pipelines.defaults import _METRICS_DEFAULTS
 from atria_insights.explainer_pipelines.utilities import _get_first_layer
 from atria_insights.registry import EXPLAINER_PIPELINE
 from atria_insights.utilities.containers import ExplainerStepInputs, ModelInputs
-from atria_insights.utilities.image import _create_segmentation_fn
 
 logger = get_logger(__name__)
 
 
 class ImageClassificationExplainerPipelineConfig(AtriaExplainerPipelineConfig):
-    segmentation_fn: str = "grid"
-    segmentation_fn_kwargs: Dict[str, Any] = {}  # noqa: F821
+    image_segmentor: ModuleBuilder | None = None
 
 
 @EXPLAINER_PIPELINE.register(
@@ -36,31 +35,19 @@ class ImageClassificationExplainerPipelineConfig(AtriaExplainerPipelineConfig):
 class ImageClassificationExplainerPipeline(AtriaExplainerPipeline):
     __config_cls__ = ImageClassificationExplainerPipelineConfig
 
-    def __init__(
-        self,
-        *args,
-        **kwargs: Any,
-    ):
-        super().__init__(
-            *args,
-            **kwargs,
-        )
-        self._segmentation_fn = _create_segmentation_fn(
-            segmentation_type=self.config.segmentation_fn,
-            **self.config.segmentation_fn_kwargs,
-        )
+    def __init__(self, *args, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self._built_image_segmentor = self.config.image_segmentor()
 
     def _prepare_explainer_step_inputs(
         self, batch: ImageInstance | DocumentInstance
     ) -> ExplainerStepInputs:
         return ExplainerStepInputs(
-            model_inputs=ModelInputs(
-                explained_inputs={"image": batch.image.content},
-            ),
+            model_inputs=ModelInputs(explained_inputs={"image": batch.image.content}),
             baselines={"image": torch.zeros_like(batch.image.content)},
             metric_baselines={"image": torch.zeros_like(batch.image.content)},
             feature_masks={
-                "image": self._segmentation_fn(batch.image.content).expand_as(
+                "image": self._built_image_segmentor(batch.image.content).expand_as(
                     batch.image.content
                 )
             },
@@ -89,6 +76,6 @@ class ImageClassificationExplainerPipeline(AtriaExplainerPipeline):
         self,
         batch: BaseDataInstance,
         explainer_step_inputs: ExplainerStepInputs,
-        explanations: Dict[str, torch.Tensor],
-    ) -> Dict[str, torch.Tensor]:
+        explanations: dict[str, torch.Tensor],
+    ) -> dict[str, torch.Tensor]:
         return {k: explanation.sum(dim=1) for k, explanation in explanations.items()}

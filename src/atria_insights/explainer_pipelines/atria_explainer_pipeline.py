@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections import OrderedDict
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Dict, List, OrderedDict, Union
+from typing import TYPE_CHECKING, Any
 
 from atria_core.logger import get_logger
-from atria_core.utilities.repr import RepresentationMixin
 from atria_models.pipelines.atria_model_pipeline import AtriaModelPipeline
 from pydantic import BaseModel, ConfigDict
 
@@ -17,11 +17,7 @@ from atria_insights.registry.registry_groups import (
 
 if TYPE_CHECKING:
     import torch
-    from atria_core.types import (
-        BaseDataInstance,
-        DatasetMetadata,
-    )
-    from ignite.contrib.handlers import TensorboardLogger
+    from atria_core.types import BaseDataInstance
     from ignite.handlers import ProgressBar
     from ignite.metrics import Metric
     from torchxai.explainers import Explainer
@@ -46,7 +42,6 @@ class AtriaExplainerPipelineConfig(BaseModel):
 
     pipeline_name: str | None = None
     config_name: str = "default"
-    model_pipeline: AtriaModelPipeline | None = None
     explainer: ExplainerBuilder | None = None
     explainer_metrics: dict[str, ExplainerMetricBuilder] | None = None
     is_multi_target: bool = False
@@ -56,6 +51,8 @@ class ExplainerPipelineConfigMixin:
     __config_cls__: type[AtriaExplainerPipelineConfig]
 
     def __init__(self, **kwargs):
+        from atria_core.utilities.strings import _convert_to_snake_case
+
         config_cls = getattr(self.__class__, "__config_cls__", None)
         assert issubclass(config_cls, AtriaExplainerPipelineConfig), (
             f"{self.__class__.__name__} must define a __config_cls__ attribute "
@@ -63,7 +60,7 @@ class ExplainerPipelineConfigMixin:
         )
         self._config = config_cls(**kwargs)
         if self._config.pipeline_name is None:
-            self._config.pipeline_name = self.__class__.__name__.lower()
+            self._config.pipeline_name = _convert_to_snake_case(self.__class__.__name__)
         super().__init__()
 
     def __init_subclass__(cls, **kwargs):
@@ -85,25 +82,26 @@ class ExplainerPipelineConfigMixin:
         return self._config
 
 
-class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMixin):
+class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin):
     __config_cls__ = AtriaExplainerPipelineConfig
 
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
         self._progress_bar: ProgressBar | None = None
+        self._model_pipeline: AtriaModelPipeline | None = None
         self._built_explainer: Explainer | None = None
-        self._built_explainer_metrics: Dict[str, Metric] | None = None
+        self._built_explainer_metrics: dict[str, Metric] | None = None
 
     @property
     def model_pipeline(self) -> AtriaModelPipeline:
-        return self._config.model_pipeline
+        return self._model_pipeline
 
     @model_pipeline.setter
     def model_pipeline(self, value: AtriaModelPipeline) -> None:
-        self._config.model_pipeline = value
+        self._model_pipeline = value
 
     @property
-    def metrics(self) -> Dict[str, Metric] | None:
+    def metrics(self) -> dict[str, Metric] | None:
         """
         Returns the metrics defined in the explainer pipeline configuration.
         """
@@ -129,34 +127,37 @@ class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMi
 
     def build(
         self,
-        dataset_metadata: DatasetMetadata,
+        model_pipeline: AtriaModelPipeline,
         device: str | torch.device | None = "cpu",
-        tb_logger: TensorboardLogger | None = None,
     ) -> None:
         """
         Build the explainer pipeline with the provided configuration.
         """
-        self.model_pipeline = self.model_pipeline.build(
-            dataset_metadata=dataset_metadata,
-            tb_logger=tb_logger,
-        )
-        self._built_explainer = self.config.explainer(model=self.model_pipeline.model)
+        # self._model_pipeline = self._model_pipeline.build(
+        #     dataset_metadata=dataset_metadata, tb_logger=tb_logger
+        # )
+        from atria_insights.metrics.torchxai_metric import TorchXAIMetric
+
+        self._model_pipeline = model_pipeline
+        self._built_explainer = self.config.explainer(model=self._model_pipeline.model)
         self._built_explainer_metrics = {
-            metric_name: metric_builder(
+            metric_name: TorchXAIMetric(
                 explainer=self._built_explainer,
-                forward_func=self.model_pipeline.model,
+                metric_func=metric_builder(),
+                forward_func=self._model_pipeline.model,
                 device=device,
                 progress_bar=self._progress_bar,
             )
             for metric_name, metric_builder in self.config.explainer_metrics.items()
         }
+        logger.info(self._built_explainer_metrics)
 
         return self
 
     def explanation_step(
         self,
         batch: BaseDataInstance,
-        train_baselines: Dict[str, torch.Tensor] | None = None,
+        train_baselines: dict[str, torch.Tensor] | None = None,
         **kwargs,
     ) -> ExplainerStepOutput:
         import torch
@@ -175,7 +176,7 @@ class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMi
                 )
 
             # model forward
-            model_outputs = self.model_pipeline.model(
+            model_outputs = self._model_pipeline.model(
                 *tuple(explainer_step_inputs.model_inputs.explained_inputs.values()),
                 *tuple(
                     explainer_step_inputs.model_inputs.additional_forward_kwargs.values()
@@ -217,21 +218,19 @@ class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMi
 
     def train_baselines_generation_step(
         self, batch: BaseDataInstance
-    ) -> Dict[str, torch.Tensor]:
+    ) -> dict[str, torch.Tensor]:
         return self._prepare_train_baselines(batch=batch)
 
     def _prepare_step_outputs(
         self,
         batch: BaseDataInstance,  # noqa: F821
         explainer_step_inputs: ExplainerStepInputs,
-        target: Union[torch.Tensor, List[torch.Tensor]],
+        target: torch.Tensor | list[torch.Tensor],
         model_outputs: torch.Tensor,
-        explanations: Dict[str, torch.Tensor],
-        reduced_explanations: Dict[str, torch.Tensor],
+        explanations: dict[str, torch.Tensor],
+        reduced_explanations: dict[str, torch.Tensor],
     ) -> ExplainerStepOutput:
-        from atria_insights.utilities.containers import (
-            ExplainerStepOutput,
-        )
+        from atria_insights.utilities.containers import ExplainerStepOutput
 
         return ExplainerStepOutput(
             index=batch.index,
@@ -261,13 +260,21 @@ class AtriaExplainerPipeline(ABC, ExplainerPipelineConfigMixin, RepresentationMi
         batch: BaseDataInstance,
         explainer_step_inputs: ExplainerStepInputs,
         model_outputs: torch.Tensor,
-    ) -> Union[torch.Tensor, List[torch.Tensor]]:
+    ) -> torch.Tensor | list[torch.Tensor]:
         pass
 
     def _reduce_explanations(
         self,
         batch: BaseDataInstance,
         explainer_step_inputs: ExplainerStepInputs,
-        explanations: Dict[str, torch.Tensor],
-    ) -> Dict[str, torch.Tensor]:
+        explanations: dict[str, torch.Tensor],
+    ) -> dict[str, torch.Tensor]:
         return explanations
+
+    def __repr__(self) -> str:
+        return f"""{self.__class__.__name__}(
+            model_pipeline={self._model_pipeline},
+            explainer={self.explainer},
+            explainer_metrics={self.metrics},
+            is_multi_target={self.config.is_multi_target}
+        )"""
